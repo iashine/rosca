@@ -25,6 +25,17 @@ const SpinWheel = ({
     setWinner(null);
   }, [members]);
 
+  // Auto-hide winner overlay after 3 seconds
+  useEffect(() => {
+    if (showWinner) {
+      const timer = setTimeout(() => {
+        setShowWinner(false);
+        setWinner(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showWinner]);
+
   // Initialize sounds
   useEffect(() => {
     // Create audio context for sounds

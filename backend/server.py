@@ -1,15 +1,18 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
+from pydantic import BaseModel, Field, EmailStr
+from typing import List, Optional
 import uuid
-from datetime import datetime, timezone
-
+from datetime import datetime, timezone, timedelta
+import bcrypt
+import jwt
+import secrets
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -19,52 +22,666 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
-app = FastAPI()
+# JWT Settings
+JWT_SECRET = os.environ.get('JWT_SECRET', secrets.token_hex(32))
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRATION_HOURS = 24
+
+# Create the main app
+app = FastAPI(title="ROSCA Spin API")
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
+# Security
+security = HTTPBearer()
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
+# ============ MODELS ============
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    name: str
+    role: str = "member"  # "moderator" or "member"
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    name: str
+    role: str
+    created_at: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+
+class GroupCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    contribution_amount: float = 0
+    currency: str = "USD"
+
+class GroupUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    contribution_amount: Optional[float] = None
+    currency: Optional[str] = None
+
+class GroupResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    contribution_amount: float
+    currency: str
+    moderator_id: str
+    moderator_name: str
+    member_count: int
+    created_at: str
+
+class MemberCreate(BaseModel):
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+class MemberResponse(BaseModel):
+    id: str
+    name: str
+    email: Optional[str]
+    phone: Optional[str]
+    status: str
+    group_id: str
+    created_at: str
+
+class SessionCreate(BaseModel):
+    group_id: str
+    notes: Optional[str] = ""
+
+class SessionResponse(BaseModel):
+    id: str
+    group_id: str
+    group_name: str
+    status: str
+    started_at: str
+    ended_at: Optional[str]
+    notes: str
+    spin_count: int
+
+class SpinResultCreate(BaseModel):
+    session_id: str
+    winner_member_id: str
+    winner_name: str
+    spin_angle: float
+    random_seed: str
+
+class SpinResultResponse(BaseModel):
+    id: str
+    session_id: str
+    winner_member_id: str
+    winner_name: str
+    spin_angle: float
+    spin_number: int
+    created_at: str
+
+class ThemePreferences(BaseModel):
+    wheel_colors: List[str] = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD", "#D4A5A5"]
+    background_color: str = "#1a1f36"
+    text_color: str = "#ffffff"
+    accent_color: str = "#3b82f6"
+
+class AuditLogResponse(BaseModel):
+    id: str
+    user_id: str
+    user_name: str
+    action: str
+    entity_type: str
+    entity_id: str
+    details: str
+    created_at: str
+
+# ============ AUTH HELPERS ============
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+
+def create_token(user_id: str, email: str, role: str) -> str:
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "role": role,
+        "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
+        user = await db.users.find_one({"id": user_id}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        return user
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+async def log_audit(user_id: str, user_name: str, action: str, entity_type: str, entity_id: str, details: str = ""):
+    audit_log = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "user_name": user_name,
+        "action": action,
+        "entity_type": entity_type,
+        "entity_id": entity_id,
+        "details": details,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.audit_logs.insert_one(audit_log)
+
+# ============ AUTH ENDPOINTS ============
+
+@api_router.post("/auth/register", response_model=TokenResponse)
+async def register(user_data: UserCreate):
+    # Check if email exists
+    existing = await db.users.find_one({"email": user_data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
     
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    user_id = str(uuid.uuid4())
+    user = {
+        "id": user_id,
+        "email": user_data.email,
+        "password_hash": hash_password(user_data.password),
+        "name": user_data.name,
+        "role": user_data.role,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.users.insert_one(user)
+    await log_audit(user_id, user_data.name, "REGISTER", "user", user_id, f"User registered: {user_data.email}")
+    
+    token = create_token(user_id, user_data.email, user_data.role)
+    
+    return TokenResponse(
+        access_token=token,
+        user=UserResponse(
+            id=user_id,
+            email=user_data.email,
+            name=user_data.name,
+            role=user_data.role,
+            created_at=user["created_at"]
+        )
+    )
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+@api_router.post("/auth/login", response_model=TokenResponse)
+async def login(credentials: UserLogin):
+    user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    if not verify_password(credentials.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    token = create_token(user["id"], user["email"], user["role"])
+    await log_audit(user["id"], user["name"], "LOGIN", "user", user["id"], "User logged in")
+    
+    return TokenResponse(
+        access_token=token,
+        user=UserResponse(
+            id=user["id"],
+            email=user["email"],
+            name=user["name"],
+            role=user["role"],
+            created_at=user["created_at"]
+        )
+    )
 
-# Add your routes to the router instead of directly to app
+@api_router.get("/auth/me", response_model=UserResponse)
+async def get_me(current_user: dict = Depends(get_current_user)):
+    return UserResponse(
+        id=current_user["id"],
+        email=current_user["email"],
+        name=current_user["name"],
+        role=current_user["role"],
+        created_at=current_user["created_at"]
+    )
+
+# ============ GROUP ENDPOINTS ============
+
+@api_router.post("/groups", response_model=GroupResponse)
+async def create_group(group_data: GroupCreate, current_user: dict = Depends(get_current_user)):
+    group_id = str(uuid.uuid4())
+    group = {
+        "id": group_id,
+        "name": group_data.name,
+        "description": group_data.description or "",
+        "contribution_amount": group_data.contribution_amount,
+        "currency": group_data.currency,
+        "moderator_id": current_user["id"],
+        "moderator_name": current_user["name"],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.groups.insert_one(group)
+    await log_audit(current_user["id"], current_user["name"], "CREATE", "group", group_id, f"Created group: {group_data.name}")
+    
+    return GroupResponse(
+        id=group_id,
+        name=group_data.name,
+        description=group_data.description or "",
+        contribution_amount=group_data.contribution_amount,
+        currency=group_data.currency,
+        moderator_id=current_user["id"],
+        moderator_name=current_user["name"],
+        member_count=0,
+        created_at=group["created_at"]
+    )
+
+@api_router.get("/groups", response_model=List[GroupResponse])
+async def get_groups(current_user: dict = Depends(get_current_user)):
+    groups = await db.groups.find({"moderator_id": current_user["id"]}, {"_id": 0}).to_list(1000)
+    
+    result = []
+    for group in groups:
+        member_count = await db.members.count_documents({"group_id": group["id"], "status": "active"})
+        result.append(GroupResponse(
+            id=group["id"],
+            name=group["name"],
+            description=group.get("description", ""),
+            contribution_amount=group.get("contribution_amount", 0),
+            currency=group.get("currency", "USD"),
+            moderator_id=group["moderator_id"],
+            moderator_name=group.get("moderator_name", ""),
+            member_count=member_count,
+            created_at=group["created_at"]
+        ))
+    
+    return result
+
+@api_router.get("/groups/{group_id}", response_model=GroupResponse)
+async def get_group(group_id: str, current_user: dict = Depends(get_current_user)):
+    group = await db.groups.find_one({"id": group_id, "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    member_count = await db.members.count_documents({"group_id": group_id, "status": "active"})
+    
+    return GroupResponse(
+        id=group["id"],
+        name=group["name"],
+        description=group.get("description", ""),
+        contribution_amount=group.get("contribution_amount", 0),
+        currency=group.get("currency", "USD"),
+        moderator_id=group["moderator_id"],
+        moderator_name=group.get("moderator_name", ""),
+        member_count=member_count,
+        created_at=group["created_at"]
+    )
+
+@api_router.put("/groups/{group_id}", response_model=GroupResponse)
+async def update_group(group_id: str, group_data: GroupUpdate, current_user: dict = Depends(get_current_user)):
+    group = await db.groups.find_one({"id": group_id, "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    update_data = {}
+    if group_data.name is not None:
+        update_data["name"] = group_data.name
+    if group_data.description is not None:
+        update_data["description"] = group_data.description
+    if group_data.contribution_amount is not None:
+        update_data["contribution_amount"] = group_data.contribution_amount
+    if group_data.currency is not None:
+        update_data["currency"] = group_data.currency
+    
+    if update_data:
+        await db.groups.update_one({"id": group_id}, {"$set": update_data})
+        await log_audit(current_user["id"], current_user["name"], "UPDATE", "group", group_id, f"Updated group: {group_data.name or group['name']}")
+    
+    # Fetch updated group
+    updated_group = await db.groups.find_one({"id": group_id}, {"_id": 0})
+    member_count = await db.members.count_documents({"group_id": group_id, "status": "active"})
+    
+    return GroupResponse(
+        id=updated_group["id"],
+        name=updated_group["name"],
+        description=updated_group.get("description", ""),
+        contribution_amount=updated_group.get("contribution_amount", 0),
+        currency=updated_group.get("currency", "USD"),
+        moderator_id=updated_group["moderator_id"],
+        moderator_name=updated_group.get("moderator_name", ""),
+        member_count=member_count,
+        created_at=updated_group["created_at"]
+    )
+
+@api_router.delete("/groups/{group_id}")
+async def delete_group(group_id: str, current_user: dict = Depends(get_current_user)):
+    group = await db.groups.find_one({"id": group_id, "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Delete all related data
+    await db.members.delete_many({"group_id": group_id})
+    await db.sessions.delete_many({"group_id": group_id})
+    await db.spin_results.delete_many({"group_id": group_id})
+    await db.groups.delete_one({"id": group_id})
+    
+    await log_audit(current_user["id"], current_user["name"], "DELETE", "group", group_id, f"Deleted group: {group['name']}")
+    
+    return {"message": "Group deleted successfully"}
+
+# ============ MEMBER ENDPOINTS ============
+
+@api_router.post("/groups/{group_id}/members", response_model=MemberResponse)
+async def add_member(group_id: str, member_data: MemberCreate, current_user: dict = Depends(get_current_user)):
+    group = await db.groups.find_one({"id": group_id, "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    member_id = str(uuid.uuid4())
+    member = {
+        "id": member_id,
+        "name": member_data.name,
+        "email": member_data.email,
+        "phone": member_data.phone,
+        "group_id": group_id,
+        "status": "active",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.members.insert_one(member)
+    await log_audit(current_user["id"], current_user["name"], "ADD_MEMBER", "member", member_id, f"Added member: {member_data.name} to group: {group['name']}")
+    
+    return MemberResponse(
+        id=member_id,
+        name=member_data.name,
+        email=member_data.email,
+        phone=member_data.phone,
+        status="active",
+        group_id=group_id,
+        created_at=member["created_at"]
+    )
+
+@api_router.get("/groups/{group_id}/members", response_model=List[MemberResponse])
+async def get_members(group_id: str, current_user: dict = Depends(get_current_user)):
+    group = await db.groups.find_one({"id": group_id, "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    members = await db.members.find({"group_id": group_id, "status": "active"}, {"_id": 0}).to_list(1000)
+    
+    return [MemberResponse(
+        id=m["id"],
+        name=m["name"],
+        email=m.get("email"),
+        phone=m.get("phone"),
+        status=m["status"],
+        group_id=m["group_id"],
+        created_at=m["created_at"]
+    ) for m in members]
+
+@api_router.delete("/groups/{group_id}/members/{member_id}")
+async def remove_member(group_id: str, member_id: str, current_user: dict = Depends(get_current_user)):
+    group = await db.groups.find_one({"id": group_id, "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    member = await db.members.find_one({"id": member_id, "group_id": group_id}, {"_id": 0})
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    
+    # Delete the member completely from database
+    await db.members.delete_one({"id": member_id})
+    await log_audit(current_user["id"], current_user["name"], "REMOVE_MEMBER", "member", member_id, f"Removed member: {member['name']} from group: {group['name']}")
+    
+    return {"message": "Member removed successfully"}
+
+# ============ SESSION ENDPOINTS ============
+
+@api_router.post("/sessions", response_model=SessionResponse)
+async def create_session(session_data: SessionCreate, current_user: dict = Depends(get_current_user)):
+    group = await db.groups.find_one({"id": session_data.group_id, "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    session_id = str(uuid.uuid4())
+    session = {
+        "id": session_id,
+        "group_id": session_data.group_id,
+        "group_name": group["name"],
+        "status": "active",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "ended_at": None,
+        "notes": session_data.notes or "",
+        "created_by": current_user["id"]
+    }
+    
+    await db.sessions.insert_one(session)
+    await log_audit(current_user["id"], current_user["name"], "START_SESSION", "session", session_id, f"Started session for group: {group['name']}")
+    
+    return SessionResponse(
+        id=session_id,
+        group_id=session_data.group_id,
+        group_name=group["name"],
+        status="active",
+        started_at=session["started_at"],
+        ended_at=None,
+        notes=session_data.notes or "",
+        spin_count=0
+    )
+
+@api_router.get("/sessions", response_model=List[SessionResponse])
+async def get_sessions(current_user: dict = Depends(get_current_user)):
+    # Get all groups for this user
+    groups = await db.groups.find({"moderator_id": current_user["id"]}, {"_id": 0, "id": 1}).to_list(1000)
+    group_ids = [g["id"] for g in groups]
+    
+    sessions = await db.sessions.find({"group_id": {"$in": group_ids}}, {"_id": 0}).sort("started_at", -1).to_list(1000)
+    
+    result = []
+    for s in sessions:
+        spin_count = await db.spin_results.count_documents({"session_id": s["id"]})
+        result.append(SessionResponse(
+            id=s["id"],
+            group_id=s["group_id"],
+            group_name=s.get("group_name", ""),
+            status=s["status"],
+            started_at=s["started_at"],
+            ended_at=s.get("ended_at"),
+            notes=s.get("notes", ""),
+            spin_count=spin_count
+        ))
+    
+    return result
+
+@api_router.get("/sessions/{session_id}", response_model=SessionResponse)
+async def get_session(session_id: str, current_user: dict = Depends(get_current_user)):
+    session = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Verify user owns the group
+    group = await db.groups.find_one({"id": session["group_id"], "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    spin_count = await db.spin_results.count_documents({"session_id": session_id})
+    
+    return SessionResponse(
+        id=session["id"],
+        group_id=session["group_id"],
+        group_name=session.get("group_name", ""),
+        status=session["status"],
+        started_at=session["started_at"],
+        ended_at=session.get("ended_at"),
+        notes=session.get("notes", ""),
+        spin_count=spin_count
+    )
+
+@api_router.post("/sessions/{session_id}/end")
+async def end_session(session_id: str, current_user: dict = Depends(get_current_user)):
+    session = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    group = await db.groups.find_one({"id": session["group_id"], "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    ended_at = datetime.now(timezone.utc).isoformat()
+    await db.sessions.update_one({"id": session_id}, {"$set": {"status": "completed", "ended_at": ended_at}})
+    await log_audit(current_user["id"], current_user["name"], "END_SESSION", "session", session_id, f"Ended session for group: {group['name']}")
+    
+    return {"message": "Session ended", "ended_at": ended_at}
+
+# ============ SPIN ENDPOINTS ============
+
+@api_router.post("/spins", response_model=SpinResultResponse)
+async def record_spin(spin_data: SpinResultCreate, current_user: dict = Depends(get_current_user)):
+    session = await db.sessions.find_one({"id": spin_data.session_id}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    group = await db.groups.find_one({"id": session["group_id"], "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Get spin count for this session
+    spin_count = await db.spin_results.count_documents({"session_id": spin_data.session_id})
+    
+    spin_id = str(uuid.uuid4())
+    spin_result = {
+        "id": spin_id,
+        "session_id": spin_data.session_id,
+        "group_id": session["group_id"],
+        "winner_member_id": spin_data.winner_member_id,
+        "winner_name": spin_data.winner_name,
+        "spin_angle": spin_data.spin_angle,
+        "random_seed": spin_data.random_seed,
+        "spin_number": spin_count + 1,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.spin_results.insert_one(spin_result)
+    await log_audit(current_user["id"], current_user["name"], "SPIN", "spin", spin_id, f"Winner: {spin_data.winner_name}")
+    
+    return SpinResultResponse(
+        id=spin_id,
+        session_id=spin_data.session_id,
+        winner_member_id=spin_data.winner_member_id,
+        winner_name=spin_data.winner_name,
+        spin_angle=spin_data.spin_angle,
+        spin_number=spin_count + 1,
+        created_at=spin_result["created_at"]
+    )
+
+@api_router.get("/sessions/{session_id}/spins", response_model=List[SpinResultResponse])
+async def get_session_spins(session_id: str, current_user: dict = Depends(get_current_user)):
+    session = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    group = await db.groups.find_one({"id": session["group_id"], "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    spins = await db.spin_results.find({"session_id": session_id}, {"_id": 0}).sort("spin_number", 1).to_list(1000)
+    
+    return [SpinResultResponse(
+        id=s["id"],
+        session_id=s["session_id"],
+        winner_member_id=s["winner_member_id"],
+        winner_name=s["winner_name"],
+        spin_angle=s["spin_angle"],
+        spin_number=s["spin_number"],
+        created_at=s["created_at"]
+    ) for s in spins]
+
+# ============ THEME ENDPOINTS ============
+
+@api_router.get("/theme", response_model=ThemePreferences)
+async def get_theme(current_user: dict = Depends(get_current_user)):
+    theme = await db.theme_preferences.find_one({"user_id": current_user["id"]}, {"_id": 0})
+    if not theme:
+        return ThemePreferences()
+    
+    return ThemePreferences(
+        wheel_colors=theme.get("wheel_colors", ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD", "#D4A5A5"]),
+        background_color=theme.get("background_color", "#1a1f36"),
+        text_color=theme.get("text_color", "#ffffff"),
+        accent_color=theme.get("accent_color", "#3b82f6")
+    )
+
+@api_router.put("/theme", response_model=ThemePreferences)
+async def update_theme(theme_data: ThemePreferences, current_user: dict = Depends(get_current_user)):
+    theme = {
+        "user_id": current_user["id"],
+        "wheel_colors": theme_data.wheel_colors,
+        "background_color": theme_data.background_color,
+        "text_color": theme_data.text_color,
+        "accent_color": theme_data.accent_color,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.theme_preferences.update_one(
+        {"user_id": current_user["id"]},
+        {"$set": theme},
+        upsert=True
+    )
+    
+    return theme_data
+
+# ============ AUDIT LOG ENDPOINTS ============
+
+@api_router.get("/audit-logs", response_model=List[AuditLogResponse])
+async def get_audit_logs(limit: int = 50, current_user: dict = Depends(get_current_user)):
+    logs = await db.audit_logs.find({"user_id": current_user["id"]}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    return [AuditLogResponse(
+        id=log["id"],
+        user_id=log["user_id"],
+        user_name=log["user_name"],
+        action=log["action"],
+        entity_type=log["entity_type"],
+        entity_id=log["entity_id"],
+        details=log.get("details", ""),
+        created_at=log["created_at"]
+    ) for log in logs]
+
+# ============ STATS ENDPOINTS ============
+
+@api_router.get("/stats")
+async def get_stats(current_user: dict = Depends(get_current_user)):
+    groups = await db.groups.find({"moderator_id": current_user["id"]}, {"_id": 0, "id": 1}).to_list(1000)
+    group_ids = [g["id"] for g in groups]
+    
+    total_groups = len(group_ids)
+    total_members = await db.members.count_documents({"group_id": {"$in": group_ids}, "status": "active"})
+    total_sessions = await db.sessions.count_documents({"group_id": {"$in": group_ids}})
+    total_spins = await db.spin_results.count_documents({"group_id": {"$in": group_ids}})
+    
+    return {
+        "total_groups": total_groups,
+        "total_members": total_members,
+        "total_sessions": total_sessions,
+        "total_spins": total_spins
+    }
+
+# Root endpoint
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
+    return {"message": "ROSCA Spin API", "version": "1.0.0"}
 
 # Include the router in the main app
 app.include_router(api_router)

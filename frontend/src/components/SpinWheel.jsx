@@ -15,6 +15,15 @@ const SpinWheel = ({
   const [showWinner, setShowWinner] = useState(false);
   const spinSound = useRef(null);
   const winSound = useRef(null);
+  const membersRef = useRef(members);
+
+  // Keep membersRef in sync with members prop
+  useEffect(() => {
+    membersRef.current = members;
+    // Hide winner overlay when members change (after a spin result is processed)
+    setShowWinner(false);
+    setWinner(null);
+  }, [members]);
 
   // Initialize sounds
   useEffect(() => {
@@ -101,20 +110,23 @@ const SpinWheel = ({
     drawWheel();
   }, [drawWheel]);
 
-  // Get winner based on current rotation
-  const getWinnerIndex = (finalRotation) => {
+  // Get winner based on current rotation - uses membersRef to get current members at spin time
+  const getWinnerIndex = (finalRotation, currentMembers) => {
     const normalizedRotation = ((finalRotation % 360) + 360) % 360;
-    const sliceAngle = 360 / members.length;
+    const sliceAngle = 360 / currentMembers.length;
     // Arrow is at the top (270 degrees in canvas coordinates, but we adjust for how we draw)
     // The arrow points at angle 270 (top), so we need to find which slice is there
     const pointerAngle = (270 - normalizedRotation + 360) % 360;
     const winnerIndex = Math.floor(pointerAngle / sliceAngle);
-    return winnerIndex % members.length;
+    return winnerIndex % currentMembers.length;
   };
 
   const spin = () => {
     if (externalSpinning || members.length === 0) return;
 
+    // Capture current members at spin start to avoid stale closure issues
+    const spinMembers = [...members];
+    
     setExternalSpinning(true);
     setShowWinner(false);
     setWinner(null);
@@ -134,8 +146,8 @@ const SpinWheel = ({
 
     // Calculate target rotation (5-10 full rotations + random position)
     const fullRotations = 5 + Math.floor(randomValue * 5);
-    const targetIndex = Math.floor(randomValue * members.length);
-    const sliceAngle = 360 / members.length;
+    const targetIndex = Math.floor(randomValue * spinMembers.length);
+    const sliceAngle = 360 / spinMembers.length;
     // Position the winner at the top (arrow position)
     const targetAngle = 270 - (targetIndex * sliceAngle) - (sliceAngle / 2);
     const totalRotation = rotation + (fullRotations * 360) + ((targetAngle - (rotation % 360) + 360) % 360);
@@ -160,8 +172,8 @@ const SpinWheel = ({
       } else {
         // Spin complete
         setExternalSpinning(false);
-        const winnerIndex = getWinnerIndex(currentRotation);
-        const selectedWinner = members[winnerIndex];
+        const winnerIndex = getWinnerIndex(currentRotation, spinMembers);
+        const selectedWinner = spinMembers[winnerIndex];
         
         setWinner(selectedWinner);
         setShowWinner(true);

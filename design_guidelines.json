@@ -1,0 +1,145 @@
+{
+  "identity": {
+    "name": "ROSCA Spin",
+    "tone": "Trustworthy yet Exciting",
+    "archetype": "Swiss High-Contrast (Dashboard) + Electric Neon (Game)",
+    "principles": [
+      "Fusion: Swiss Precision meets Casino Thrill",
+      "Emotion: Security in data, Adrenaline in the spin",
+      "Zoom: Focus on the winner, focus on the balance",
+      "Negative Space: Don't clutter the money"
+    ]
+  },
+  "typography": {
+    "headings": {
+      "family": "Outfit, sans-serif",
+      "weights": ["500", "700"],
+      "usage": "Main page titles, widget headers, modal titles. Use tracking-tight for sizes > 32px."
+    },
+    "body": {
+      "family": "DM Sans, sans-serif",
+      "weights": ["400", "500"],
+      "usage": "General text, data tables, form inputs."
+    },
+    "mono": {
+      "family": "JetBrains Mono, monospace",
+      "usage": "Transaction IDs, cryptographic hashes, financial figures in tables."
+    }
+  },
+  "colors": {
+    "light": {
+      "background": "hsl(210, 40%, 98%)",
+      "foreground": "hsl(222, 47%, 11%)",
+      "primary": "hsl(221, 83%, 53%)",
+      "primary_foreground": "hsl(210, 40%, 98%)",
+      "card": "hsl(0, 0%, 100%)",
+      "card_foreground": "hsl(222, 47%, 11%)",
+      "border": "hsl(214, 32%, 91%)",
+      "accent": "hsl(45, 93%, 47%)",
+      "success": "hsl(142, 76%, 36%)"
+    },
+    "dark": {
+      "background": "hsl(222, 47%, 11%)",
+      "foreground": "hsl(210, 40%, 98%)",
+      "primary": "hsl(217, 91%, 60%)",
+      "primary_foreground": "hsl(222, 47%, 11%)",
+      "card": "hsl(217, 33%, 17%)",
+      "card_foreground": "hsl(210, 40%, 98%)",
+      "border": "hsl(217, 33%, 25%)",
+      "accent": "hsl(45, 93%, 47%)",
+      "success": "hsl(142, 76%, 36%)"
+    },
+    "wheel_theme": [
+      "#FF6B6B",
+      "#4ECDC4",
+      "#45B7D1",
+      "#96CEB4",
+      "#FFEEAD",
+      "#D4A5A5"
+    ]
+  },
+  "layout_strategies": {
+    "dashboard": {
+      "grid_mode": "MODE B: THE CONTROL ROOM",
+      "gap": "gap-4",
+      "padding": "p-6 md:p-8",
+      "rules": [
+        "Dense data display",
+        "No jagged bottoms - stretch widgets to full height",
+        "Use 'Neumorphism' (Tactile) style for stats cards"
+      ]
+    },
+    "spin_page": {
+      "grid_mode": "MODE A: THE TETRIS",
+      "gap": "gap-8",
+      "padding": "p-4 md:p-12",
+      "rules": [
+        "Wheel is the Hero (col-span-full md:col-span-8)",
+        "Winner list is the Tall (col-span-4 row-span-2)",
+        "Use 'Glassmorphism' for overlays and result modals"
+      ]
+    },
+    "marketing": {
+      "grid_mode": "MODE A: THE TETRIS",
+      "gap": "gap-12",
+      "padding": "p-8 md:p-24",
+      "rules": [
+        "Asymmetry is mandatory",
+        "Large typography (text-6xl+)",
+        "Use 'Tracing Beam' borders for feature highlights"
+      ]
+    }
+  },
+  "components": {
+    "buttons": {
+      "style": "pill-shaped or sharp-edged",
+      "animation": "transform active:scale-95 transition-all duration-200",
+      "shadow": "shadow-lg hover:shadow-xl"
+    },
+    "cards": {
+      "dashboard": "bg-card border border-border/50 shadow-sm hover:shadow-md transition-all",
+      "glass": "bg-white/10 backdrop-blur-md border border-white/20 shadow-xl"
+    },
+    "wheel": {
+      "type": "Custom Canvas/SVG",
+      "library": "framer-motion + canvas-confetti",
+      "interaction": "Must have sound effects and haptic visual feedback (shake) on spin end"
+    }
+  },
+  "visual_enhancers": {
+    "textures": "Subtle noise overlay on dark mode backgrounds to prevent banding",
+    "motion": "Staggered entrance for list items (framer-motion)",
+    "decorations": "Abstract geometric shapes (circles, triangles) floating in background of Spin page"
+  },
+  "image_urls": {
+    "hero_community": {
+      "url": "https://images.unsplash.com/photo-1758272133803-1cbb513689ca?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzV8MHwxfHNlYXJjaHwzfHxkaXZlcnNlJTIwY29tbXVuaXR5JTIwZ3JvdXAlMjBoYXBweXxlbnwwfHx8fDE3NjcwNDMzNDh8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Diverse group of happy friends celebrating",
+      "usage": "Landing page hero or 'Join Group' modal background"
+    },
+    "meeting_professional": {
+      "url": "https://images.unsplash.com/photo-1758518726609-c551f858cd5c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBvZmZpY2UlMjBtZWV0aW5nJTIwZmluYW5jaWFsfGVufDB8fHx8MTc2NzA0MzM1MHww&ixlib=rb-4.1.0&q=85",
+      "alt": "Professional business meeting",
+      "usage": "About page or 'How it works' section"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Implement the 'Spin Wheel' as a reusable component using Framer Motion for smooth physics.",
+    "Use 'sonner' for all toast notifications (e.g., 'Member Added', 'Spin Result').",
+    "Ensure the Dashboard follows the 'Control Room' grid layout - dense and data-rich.",
+    "The 'Spin Session' page must feel like a game - use the 'Electric & Neon' archetype colors there.",
+    "Use the provided image URLs for the landing page and empty states.",
+    "Strictly follow the spacing scale - do not be afraid of p-12 or p-24.",
+    "Add data-testid to all interactive elements."
+  ],
+  "universal_guidelines": [
+    "Avoid generic centered layouts.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "Do NOT apply universal transition (transition: all).",
+    "Do NOT center align the app container.",
+    "Every interaction needs micro-animations.",
+    "Use 2-3x more spacing than feels comfortable.",
+    "Subtle grain textures and noise overlays are encouraged."
+  ]
+}

@@ -220,8 +220,13 @@ function App() {
               }}
             />
             <Routes>
+              {/* Public routes */}
+              <Route path="/landing" element={<Landing />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              
+              {/* Protected routes */}
               <Route path="/" element={
                 <ProtectedRoute>
                   <Dashboard />
@@ -260,6 +265,11 @@ function App() {
               <Route path="/audit-logs" element={
                 <ProtectedRoute>
                   <AuditLogs />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin" element={
+                <ProtectedRoute>
+                  <AdminDashboard />
                 </ProtectedRoute>
               } />
             </Routes>

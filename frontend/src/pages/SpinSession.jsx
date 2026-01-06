@@ -35,6 +35,8 @@ const SpinSession = () => {
   const [loading, setLoading] = useState(true);
   const [isSpinning, setIsSpinning] = useState(false);
   const [sessionComplete, setSessionComplete] = useState(false);
+  const [currentWinner, setCurrentWinner] = useState(null);
+  const [countdown, setCountdown] = useState(0);
 
   const fetchGroupData = useCallback(async () => {
     try {

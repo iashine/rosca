@@ -86,7 +86,14 @@ const SpinSession = () => {
       setSpinResults(prev => [...prev, res.data]);
 
       // Remove winner from available members (don't spin same person twice)
-      setAvailableMembers(prev => prev.filter(m => m.id !== winner.id));
+      console.log('Before removal - winner:', winner.id, winner.name);
+      console.log('Before removal - available members:', availableMembers.map(m => ({ id: m.id, name: m.name })));
+      
+      setAvailableMembers(prev => {
+        const newMembers = prev.filter(m => m.id !== winner.id);
+        console.log('After removal - new members:', newMembers.map(m => ({ id: m.id, name: m.name })));
+        return newMembers;
+      });
 
       toast.success(`${winner.name} wins!`, {
         description: `Spin #${res.data.spin_number}`,

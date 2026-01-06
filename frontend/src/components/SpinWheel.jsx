@@ -265,7 +265,7 @@ const SpinWheel = ({
           >
             <div className="winner-card winner-display rounded-2xl p-8 text-center">
               <p className="text-sm text-muted-foreground mb-2 uppercase tracking-wider">Winner!</p>
-              <h2 className="text-3xl font-bold text-accent" data-testid="winner-name">
+              <h2 className="text-2xl font-bold text-primary" data-testid="winner-name">
                 {winner.name}
               </h2>
             </div>

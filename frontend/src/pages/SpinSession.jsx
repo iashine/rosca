@@ -154,11 +154,6 @@ const SpinSession = () => {
           toast.success("🎉 ROSCA cycle complete! All members have been selected.");
         }
       }, 10000);
-      } else if (newAvailable.length === 0) {
-        // Session complete
-        setSessionComplete(true);
-        toast.success("🎉 ROSCA cycle complete! All members have been selected.");
-      }
     } catch (error) {
       toast.error("Failed to record spin");
     }

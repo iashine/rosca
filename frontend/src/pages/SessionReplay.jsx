@@ -7,6 +7,7 @@ import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 import { Badge } from "../components/ui/badge";
 import { ScrollArea } from "../components/ui/scroll-area";
+import { Progress } from "../components/ui/progress";
 import confetti from "canvas-confetti";
 import { 
   ArrowLeft,
@@ -16,7 +17,9 @@ import {
   Play,
   Pause,
   RotateCcw,
-  FastForward
+  FastForward,
+  Users,
+  Sparkles
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -31,6 +34,7 @@ const SessionReplay = () => {
   const [currentWinner, setCurrentWinner] = useState(null);
   const [wheelRotation, setWheelRotation] = useState(0);
   const [isWheelSpinning, setIsWheelSpinning] = useState(false);
+  const [currentMembers, setCurrentMembers] = useState([]);
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
 
@@ -45,6 +49,11 @@ const SessionReplay = () => {
         setSession(sessionRes.data);
         setSpinResults(spinsRes.data);
         await loadWheelTheme();
+        
+        // Set initial members from first spin
+        if (spinsRes.data.length > 0 && spinsRes.data[0].members_at_spin) {
+          setCurrentMembers(spinsRes.data[0].members_at_spin);
+        }
       } catch (error) {
         console.error("Failed to load session");
       } finally {
@@ -55,16 +64,7 @@ const SessionReplay = () => {
     fetchSession();
   }, [sessionId, loadWheelTheme]);
 
-  // Generate member names from spin results (reconstructing the original wheel)
-  const getWheelMembers = useCallback(() => {
-    // Create a list of all winners - they were the original members
-    return spinResults.map(spin => ({
-      id: spin.winner_member_id,
-      name: spin.winner_name
-    }));
-  }, [spinResults]);
-
-  // Draw the wheel
+  // Draw the wheel with given members
   const drawWheel = useCallback((members, rotation, highlightIndex = -1) => {
     const canvas = canvasRef.current;
     if (!canvas || members.length === 0) return;
@@ -83,22 +83,18 @@ const SessionReplay = () => {
       const startAngle = index * sliceAngle + (rotation * Math.PI) / 180;
       const endAngle = startAngle + sliceAngle;
 
-      // Draw slice
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
       ctx.arc(centerX, centerY, radius, startAngle, endAngle);
       ctx.closePath();
 
-      // Fill with color (highlight winner)
       ctx.fillStyle = colors[index % colors.length];
       ctx.fill();
 
-      // Add border
       ctx.strokeStyle = highlightIndex === index ? "#fbbf24" : "rgba(255, 255, 255, 0.3)";
       ctx.lineWidth = highlightIndex === index ? 4 : 2;
       ctx.stroke();
 
-      // Draw text
       ctx.save();
       ctx.translate(centerX, centerY);
       ctx.rotate(startAngle + sliceAngle / 2);
@@ -126,7 +122,6 @@ const SessionReplay = () => {
     ctx.lineWidth = 4;
     ctx.stroke();
 
-    // Draw center text
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 14px 'Outfit', sans-serif";
     ctx.textAlign = "center";
@@ -136,28 +131,49 @@ const SessionReplay = () => {
 
   // Initial wheel draw
   useEffect(() => {
-    const members = getWheelMembers();
-    if (members.length > 0) {
-      drawWheel(members, 0);
+    if (currentMembers.length > 0) {
+      drawWheel(currentMembers, 0);
     }
-  }, [spinResults, drawWheel, getWheelMembers]);
+  }, [currentMembers, drawWheel]);
 
   // Animate wheel to a specific spin result
   const animateToSpin = useCallback((spinIndex) => {
     if (spinIndex < 0 || spinIndex >= spinResults.length) return;
 
     const spin = spinResults[spinIndex];
-    const members = getWheelMembers();
-    const targetAngle = spin.spin_angle;
+    const members = spin.members_at_spin || [];
+    
+    if (members.length === 0) {
+      // Auto-selected (last member) - just show the result
+      setCurrentWinner(spin);
+      setIsWheelSpinning(false);
+      return;
+    }
+
+    // Update current members to what was on the wheel
+    setCurrentMembers(members);
+    
+    if (spin.is_auto_selected) {
+      // Don't animate for auto-selected, just show
+      setCurrentWinner(spin);
+      drawWheel(members, 0, 0);
+      confetti({
+        particleCount: 80,
+        spread: 60,
+        origin: { y: 0.6 },
+        colors: wheelTheme.wheel_colors
+      });
+      return;
+    }
 
     setIsWheelSpinning(true);
     setCurrentWinner(null);
 
+    const targetAngle = spin.spin_angle;
     const startRotation = wheelRotation;
     const duration = 4000;
     const startTime = Date.now();
 
-    // Add extra rotations for visual effect
     const extraRotations = 3 * 360;
     const totalRotation = startRotation + extraRotations + (targetAngle - (startRotation % 360) + 360) % 360;
 
@@ -165,9 +181,7 @@ const SessionReplay = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
       
-      // Easing function (ease-out cubic)
       const easeOut = 1 - Math.pow(1 - progress, 3);
-      
       const currentRotation = startRotation + (totalRotation - startRotation) * easeOut;
       setWheelRotation(currentRotation);
       drawWheel(members, currentRotation);
@@ -175,15 +189,12 @@ const SessionReplay = () => {
       if (progress < 1) {
         animationRef.current = requestAnimationFrame(animate);
       } else {
-        // Animation complete
         setIsWheelSpinning(false);
         setCurrentWinner(spin);
         
-        // Find winner index and highlight
         const winnerIndex = members.findIndex(m => m.id === spin.winner_member_id);
         drawWheel(members, currentRotation, winnerIndex);
         
-        // Fire confetti
         confetti({
           particleCount: 80,
           spread: 60,
@@ -194,19 +205,17 @@ const SessionReplay = () => {
     };
 
     animationRef.current = requestAnimationFrame(animate);
-  }, [spinResults, wheelRotation, drawWheel, getWheelMembers, wheelTheme.wheel_colors]);
+  }, [spinResults, wheelRotation, drawWheel, wheelTheme.wheel_colors]);
 
   // Handle replay sequence
   useEffect(() => {
     if (isReplaying && !isWheelSpinning && replayIndex < spinResults.length) {
       if (replayIndex === -1) {
-        // Start first spin after a brief delay
         const timer = setTimeout(() => {
           setReplayIndex(0);
         }, 500);
         return () => clearTimeout(timer);
       } else {
-        // Animate current spin
         animateToSpin(replayIndex);
       }
     }
@@ -222,27 +231,26 @@ const SessionReplay = () => {
         }, 2000);
         return () => clearTimeout(timer);
       } else {
-        // Replay complete
         setIsReplaying(false);
       }
     }
   }, [isReplaying, isWheelSpinning, currentWinner, replayIndex, spinResults.length]);
 
   const startReplay = () => {
-    // Cancel any ongoing animation
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
     }
     
-    // Reset state
     setWheelRotation(0);
     setReplayIndex(-1);
     setCurrentWinner(null);
     setIsReplaying(true);
     
-    // Redraw wheel at starting position
-    const members = getWheelMembers();
-    drawWheel(members, 0);
+    // Reset to first spin's members
+    if (spinResults.length > 0 && spinResults[0].members_at_spin) {
+      setCurrentMembers(spinResults[0].members_at_spin);
+      drawWheel(spinResults[0].members_at_spin, 0);
+    }
   };
 
   const pauseReplay = () => {
@@ -257,8 +265,10 @@ const SessionReplay = () => {
     setWheelRotation(0);
     setReplayIndex(-1);
     setCurrentWinner(null);
-    const members = getWheelMembers();
-    drawWheel(members, 0);
+    if (spinResults.length > 0 && spinResults[0].members_at_spin) {
+      setCurrentMembers(spinResults[0].members_at_spin);
+      drawWheel(spinResults[0].members_at_spin, 0);
+    }
   };
 
   const skipToSpin = (index) => {
@@ -292,7 +302,7 @@ const SessionReplay = () => {
     );
   }
 
-  const wheelMembers = getWheelMembers();
+  const progress = (spinResults.length / session.total_members) * 100;
 
   return (
     <Layout>
@@ -314,12 +324,29 @@ const SessionReplay = () => {
               <Clock className="w-4 h-4" />
               {format(new Date(session.started_at), "h:mm a")}
             </span>
+            <span className="flex items-center gap-1">
+              <Users className="w-4 h-4" />
+              {session.total_members} members
+            </span>
           </div>
         </div>
-        <Badge variant={session.status === "active" ? "default" : "secondary"}>
-          {session.status === "active" ? "In Progress" : "Completed"}
+        <Badge variant={session.status === "in_progress" ? "secondary" : "default"}>
+          {session.status === "in_progress" ? "In Progress" : "Completed"}
         </Badge>
       </div>
+
+      {/* Progress bar */}
+      <Card className="border-border/50 mb-6">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium">Cycle Progress</span>
+            <span className="text-sm text-muted-foreground">
+              {spinResults.length} of {session.total_members} selections
+            </span>
+          </div>
+          <Progress value={progress} className="h-2" />
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Wheel Replay Section */}
@@ -327,7 +354,7 @@ const SessionReplay = () => {
           <Card className="border-border/50">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>Session Replay</span>
+                <span>Cycle Replay</span>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
@@ -389,8 +416,12 @@ const SessionReplay = () => {
                   {/* Current winner announcement */}
                   {currentWinner && (
                     <div className="mt-6 winner-card winner-display rounded-2xl p-6 text-center animate-fade-in-up">
-                      <p className="text-sm text-muted-foreground mb-1 uppercase tracking-wider">
-                        Spin #{currentWinner.spin_number} Winner
+                      <p className="text-sm text-muted-foreground mb-1 uppercase tracking-wider flex items-center justify-center gap-2">
+                        {currentWinner.is_auto_selected ? (
+                          <><Sparkles className="w-4 h-4" /> Auto-Selected (Last Member)</>
+                        ) : (
+                          <>Spin #{currentWinner.spin_number} Winner</>
+                        )}
                       </p>
                       <h2 className="text-2xl font-bold text-amber-500" data-testid="current-winner-name">
                         {currentWinner.winner_name}
@@ -404,11 +435,22 @@ const SessionReplay = () => {
                   {/* Progress indicator */}
                   <div className="mt-4 text-sm text-muted-foreground">
                     {replayIndex >= 0 ? (
-                      <span>Spin {Math.min(replayIndex + 1, spinResults.length)} of {spinResults.length}</span>
+                      <span>Selection {Math.min(replayIndex + 1, spinResults.length)} of {spinResults.length}</span>
                     ) : (
-                      <span>Ready to replay {spinResults.length} spins</span>
+                      <span>Ready to replay {spinResults.length} selections</span>
                     )}
                   </div>
+
+                  {/* Current members on wheel */}
+                  {currentMembers.length > 0 && (
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      {currentMembers.map((member) => (
+                        <Badge key={member.id} variant="outline" className="text-xs">
+                          {member.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -421,7 +463,7 @@ const SessionReplay = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Trophy className="w-5 h-5 text-amber-500" />
-                Results ({spinResults.length})
+                Selection Order ({spinResults.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -430,14 +472,14 @@ const SessionReplay = () => {
                   <p className="text-muted-foreground">No spins recorded</p>
                 </div>
               ) : (
-                <ScrollArea className="h-[400px] pr-4">
+                <ScrollArea className="h-[450px] pr-4">
                   <div className="space-y-3">
                     {spinResults.map((result, index) => (
                       <button
                         key={result.id}
                         onClick={() => skipToSpin(index)}
                         disabled={isWheelSpinning}
-                        className={`w-full text-left relative flex items-start gap-4 p-4 rounded-xl border transition-all duration-300 hover:border-primary/50 ${
+                        className={`w-full text-left relative flex flex-col gap-2 p-4 rounded-xl border transition-all duration-300 hover:border-primary/50 ${
                           replayIndex === index 
                             ? "border-amber-500/50 bg-amber-500/10" 
                             : replayIndex > index
@@ -446,40 +488,50 @@ const SessionReplay = () => {
                         }`}
                         data-testid={`replay-result-${index}`}
                       >
-                        {/* Timeline line */}
-                        {index < spinResults.length - 1 && (
-                          <div className={`absolute left-[2.1rem] top-[4rem] w-0.5 h-6 transition-colors duration-500 ${
-                            replayIndex > index ? "bg-emerald-500/50" : "bg-border"
-                          }`} />
-                        )}
-                        
-                        {/* Spin number badge */}
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
-                          replayIndex === index 
-                            ? "bg-amber-500 text-white" 
-                            : replayIndex > index
-                            ? "bg-emerald-500 text-white"
-                            : "bg-muted text-muted-foreground"
-                        }`}>
-                          {result.spin_number}
-                        </div>
-                        
-                        {/* Result info */}
-                        <div className="flex-1">
-                          <p className={`font-semibold transition-colors duration-300 ${
-                            replayIndex >= index ? "text-foreground" : "text-muted-foreground"
+                        <div className="flex items-center gap-3">
+                          {/* Spin number badge */}
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
+                            replayIndex === index 
+                              ? "bg-amber-500 text-white" 
+                              : replayIndex > index
+                              ? "bg-emerald-500 text-white"
+                              : "bg-muted text-muted-foreground"
                           }`}>
-                            {result.winner_name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {format(new Date(result.created_at), "h:mm:ss a")}
-                          </p>
+                            {result.spin_number}
+                          </div>
+                          
+                          {/* Result info */}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className={`font-semibold transition-colors duration-300 ${
+                                replayIndex >= index ? "text-foreground" : "text-muted-foreground"
+                              }`}>
+                                {result.winner_name}
+                              </p>
+                              {result.is_auto_selected && (
+                                <Badge variant="secondary" className="text-xs">
+                                  <Sparkles className="w-3 h-3 mr-1" />
+                                  Last
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {result.is_auto_selected ? "Auto-selected" : format(new Date(result.created_at), "h:mm:ss a")}
+                            </p>
+                          </div>
+
+                          <FastForward className={`w-4 h-4 transition-opacity ${
+                            replayIndex === index ? "opacity-0" : "opacity-50 hover:opacity-100"
+                          }`} />
                         </div>
 
-                        {/* Skip to icon */}
-                        <FastForward className={`w-4 h-4 transition-opacity ${
-                          replayIndex === index ? "opacity-0" : "opacity-50 hover:opacity-100"
-                        }`} />
+                        {/* Members on wheel at this spin */}
+                        {result.members_at_spin && result.members_at_spin.length > 0 && (
+                          <div className="text-xs text-muted-foreground border-t border-border/50 pt-2 mt-1">
+                            <span className="font-medium">On wheel:</span>{" "}
+                            {result.members_at_spin.map(m => m.name).join(", ")}
+                          </div>
+                        )}
                       </button>
                     ))}
                   </div>

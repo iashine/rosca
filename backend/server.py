@@ -249,6 +249,143 @@ def create_token(user_id: str, email: str, role: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
+def generate_verification_code() -> str:
+    """Generate a 6-digit verification code"""
+    return ''.join([str(random.randint(0, 9)) for _ in range(6)])
+
+def generate_math_challenge():
+    """Generate a simple math problem"""
+    num1 = random.randint(1, 20)
+    num2 = random.randint(1, 20)
+    operations = ['+', '-', '*']
+    operation = random.choice(operations)
+    
+    if operation == '+':
+        answer = num1 + num2
+    elif operation == '-':
+        # Ensure positive result
+        if num1 < num2:
+            num1, num2 = num2, num1
+        answer = num1 - num2
+    else:
+        num1 = random.randint(1, 10)
+        num2 = random.randint(1, 10)
+        answer = num1 * num2
+    
+    return {
+        "num1": num1,
+        "num2": num2,
+        "operation": operation,
+        "answer": answer,
+        "question": f"What is {num1} {operation} {num2}?"
+    }
+
+async def send_verification_email(to_email: str, code: str, name: str):
+    """Send verification email using AgentMail"""
+    if not agentmail_client:
+        logging.warning("AgentMail client not configured, skipping email")
+        return False
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #3b82f6, #6366f1); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+            .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }}
+            .code {{ font-size: 32px; font-weight: bold; text-align: center; color: #3b82f6; background: white; padding: 20px; border-radius: 8px; margin: 20px 0; letter-spacing: 8px; }}
+            .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>ROSCA Spin</h1>
+                <p>Email Verification</p>
+            </div>
+            <div class="content">
+                <p>Hello {name},</p>
+                <p>Thank you for registering with ROSCA Spin. Please use the following verification code to complete your registration:</p>
+                <div class="code">{code}</div>
+                <p>This code will expire in 15 minutes.</p>
+                <p>If you didn't request this, please ignore this email.</p>
+            </div>
+            <div class="footer">
+                <p>&copy; 2025 ROSCA Spin. All rights reserved.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    try:
+        await asyncio.to_thread(
+            agentmail_client.inboxes.messages.send,
+            AGENTMAIL_INBOX,
+            to=to_email,
+            subject="ROSCA Spin - Email Verification Code",
+            html=html_content
+        )
+        return True
+    except Exception as e:
+        logging.error(f"Failed to send verification email: {e}")
+        return False
+
+async def send_password_reset_email(to_email: str, reset_token: str, name: str):
+    """Send password reset email using AgentMail"""
+    if not agentmail_client:
+        logging.warning("AgentMail client not configured, skipping email")
+        return False
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #3b82f6, #6366f1); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+            .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }}
+            .code {{ font-size: 24px; font-weight: bold; text-align: center; color: #3b82f6; background: white; padding: 20px; border-radius: 8px; margin: 20px 0; letter-spacing: 4px; }}
+            .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>ROSCA Spin</h1>
+                <p>Password Reset</p>
+            </div>
+            <div class="content">
+                <p>Hello {name},</p>
+                <p>We received a request to reset your password. Use the following code to reset your password:</p>
+                <div class="code">{reset_token}</div>
+                <p>This code will expire in 30 minutes.</p>
+                <p>If you didn't request this, please ignore this email and your password will remain unchanged.</p>
+            </div>
+            <div class="footer">
+                <p>&copy; 2025 ROSCA Spin. All rights reserved.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    try:
+        await asyncio.to_thread(
+            agentmail_client.inboxes.messages.send,
+            AGENTMAIL_INBOX,
+            to=to_email,
+            subject="ROSCA Spin - Password Reset Code",
+            html=html_content
+        )
+        return True
+    except Exception as e:
+        logging.error(f"Failed to send password reset email: {e}")
+        return False
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])

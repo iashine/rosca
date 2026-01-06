@@ -59,7 +59,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     name: str
-    role: str = "member"  # "moderator" or "member"
+    role: str = "moderator"  # "superadmin", "moderator" or "member"
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -70,12 +70,79 @@ class UserResponse(BaseModel):
     email: str
     name: str
     role: str
+    is_verified: bool = True
     created_at: str
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+# New models for registration flow
+class RegistrationInitRequest(BaseModel):
+    email: EmailStr
+    password: str
+    name: str
+    math_answer: int
+
+class RegistrationInitResponse(BaseModel):
+    registration_id: str
+    message: str
+
+class RegistrationVerifyRequest(BaseModel):
+    registration_id: str
+    verification_code: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    reset_token: str
+    new_password: str
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class MathChallengeResponse(BaseModel):
+    challenge_id: str
+    question: str
+    num1: int
+    num2: int
+    operation: str
+
+# CMS Models
+class CMSContentCreate(BaseModel):
+    key: str
+    title: str
+    content: str
+    content_type: str = "text"  # text, html, json
+
+class CMSContentUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    content_type: Optional[str] = None
+
+class CMSContentResponse(BaseModel):
+    id: str
+    key: str
+    title: str
+    content: str
+    content_type: str
+    updated_by: Optional[str] = None
+    updated_at: str
+
+# User management models
+class UserUpdateRole(BaseModel):
+    role: str
+
+class UserListResponse(BaseModel):
+    id: str
+    email: str
+    name: str
+    role: str
+    is_verified: bool
+    created_at: str
 
 class GroupCreate(BaseModel):
     name: str

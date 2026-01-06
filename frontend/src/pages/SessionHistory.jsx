@@ -171,7 +171,7 @@ const SessionHistory = () => {
                                   <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
                                     spin.is_auto_selected 
                                       ? "bg-violet-500/20 text-violet-500"
-                                      : "bg-amber-500/20 text-amber-500"
+                                      : "bg-primary/20 text-primary"
                                   }`}>
                                     #{spin.spin_number}
                                   </div>
@@ -179,7 +179,7 @@ const SessionHistory = () => {
                                   {/* Winner Info */}
                                   <div>
                                     <div className="flex items-center gap-2">
-                                      <Trophy className="w-4 h-4 text-amber-500" />
+                                      <Trophy className="w-4 h-4 text-primary" />
                                       <span className="font-semibold">{spin.winner_name}</span>
                                       {spin.is_auto_selected && (
                                         <Badge variant="secondary" className="text-xs">
@@ -259,7 +259,7 @@ const SessionHistory = () => {
                                 <div className="mt-4 p-3 bg-muted/30 rounded-lg">
                                   <p className="text-sm">
                                     <span className="font-medium">Spin #{spin.spin_number}:</span>{" "}
-                                    {membersOnWheel.length} members competed → <span className="text-amber-500 font-medium">{spin.winner_name}</span> won
+                                    {membersOnWheel.length} members competed → <span className="text-primary font-medium">{spin.winner_name}</span> won
                                     {index < spins.length - 1 && (
                                       <span className="text-muted-foreground">
                                         {" "}→ {membersOnWheel.length - 1} members continue to next spin

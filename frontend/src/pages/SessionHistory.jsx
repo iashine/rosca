@@ -1,11 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Layout } from "../components/Layout";
-import { apiClient } from "../App";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { apiClient, useTheme } from "../App";
+import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 import { Badge } from "../components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
+import confetti from "canvas-confetti";
 import { 
   History, 
   Play,
@@ -14,22 +21,31 @@ import {
   Trophy,
   CheckCircle2,
   Clock,
-  ChevronRight,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  X
 } from "lucide-react";
 import { format } from "date-fns";
 
 const SessionHistory = () => {
+  const { wheelTheme, loadWheelTheme } = useTheme();
   const [sessions, setSessions] = useState([]);
   const [spinsBySession, setSpinsBySession] = useState({});
   const [loading, setLoading] = useState(true);
+  
+  // Replay state
+  const [replayingSpin, setReplayingSpin] = useState(null);
+  const [isWheelSpinning, setIsWheelSpinning] = useState(false);
+  const [showWinner, setShowWinner] = useState(false);
+  const canvasRef = useRef(null);
+  const animationRef = useRef(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const sessionsRes = await apiClient.get("/sessions");
         setSessions(sessionsRes.data);
+        await loadWheelTheme();
         
         // Fetch spins for each session
         const spinsData = {};
@@ -50,7 +66,136 @@ const SessionHistory = () => {
     };
 
     fetchData();
-  }, []);
+  }, [loadWheelTheme]);
+
+  // Draw wheel function
+  const drawWheel = useCallback((canvas, members, rotation, highlightWinnerId = null) => {
+    if (!canvas || members.length === 0) return;
+
+    const ctx = canvas.getContext("2d");
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(centerX, centerY) - 15;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const sliceAngle = (2 * Math.PI) / members.length;
+    const colors = wheelTheme.wheel_colors;
+
+    members.forEach((member, index) => {
+      const startAngle = index * sliceAngle + (rotation * Math.PI) / 180;
+      const endAngle = startAngle + sliceAngle;
+
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+      ctx.closePath();
+
+      ctx.fillStyle = colors[index % colors.length];
+      ctx.fill();
+
+      const isWinner = member.id === highlightWinnerId;
+      ctx.strokeStyle = isWinner ? "#22c55e" : "rgba(255, 255, 255, 0.3)";
+      ctx.lineWidth = isWinner ? 4 : 2;
+      ctx.stroke();
+
+      ctx.save();
+      ctx.translate(centerX, centerY);
+      ctx.rotate(startAngle + sliceAngle / 2);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `bold ${Math.max(10, Math.min(14, 160 / members.length))}px 'Outfit', sans-serif`;
+      ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+      ctx.shadowBlur = 2;
+      
+      let displayName = member.name;
+      if (displayName.length > 10) {
+        displayName = displayName.substring(0, 8) + "...";
+      }
+      
+      ctx.fillText(displayName, radius - 15, 4);
+      ctx.restore();
+    });
+
+    // Center circle
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 20, 0, 2 * Math.PI);
+    ctx.fillStyle = "#1e293b";
+    ctx.fill();
+    ctx.strokeStyle = "#3b82f6";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }, [wheelTheme.wheel_colors]);
+
+  // Play replay for a specific spin
+  const playReplay = useCallback((spin) => {
+    setReplayingSpin(spin);
+    setShowWinner(false);
+    setIsWheelSpinning(true);
+
+    // Wait for dialog to open and canvas to be ready
+    setTimeout(() => {
+      const canvas = canvasRef.current;
+      if (!canvas || !spin.members_at_spin || spin.members_at_spin.length === 0) {
+        setIsWheelSpinning(false);
+        setShowWinner(true);
+        return;
+      }
+
+      const members = spin.members_at_spin;
+      const targetAngle = spin.spin_angle || 0;
+      
+      // If auto-selected, just show the result
+      if (spin.is_auto_selected) {
+        drawWheel(canvas, members, 0, spin.winner_member_id);
+        setIsWheelSpinning(false);
+        setShowWinner(true);
+        return;
+      }
+
+      let currentRotation = 0;
+      const duration = 3500;
+      const startTime = Date.now();
+      const extraRotations = 3 * 360;
+      const totalRotation = extraRotations + targetAngle;
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        
+        currentRotation = totalRotation * easeOut;
+        drawWheel(canvas, members, currentRotation);
+
+        if (progress < 1) {
+          animationRef.current = requestAnimationFrame(animate);
+        } else {
+          setIsWheelSpinning(false);
+          setShowWinner(true);
+          drawWheel(canvas, members, currentRotation, spin.winner_member_id);
+          
+          confetti({
+            particleCount: 60,
+            spread: 50,
+            origin: { y: 0.6 },
+            colors: wheelTheme.wheel_colors
+          });
+        }
+      };
+
+      drawWheel(canvas, members, 0);
+      animationRef.current = requestAnimationFrame(animate);
+    }, 100);
+  }, [drawWheel, wheelTheme.wheel_colors]);
+
+  const closeReplay = () => {
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+    setReplayingSpin(null);
+    setIsWheelSpinning(false);
+    setShowWinner(false);
+  };
 
   return (
     <Layout title="Spin History">
@@ -110,21 +255,13 @@ const SessionHistory = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {isComplete ? (
-                      <Link to={`/sessions/${session.id}/replay`}>
-                        <Button variant="outline" size="sm">
-                          <Play className="w-4 h-4 mr-1" /> Replay
-                        </Button>
-                      </Link>
-                    ) : (
-                      <Link to={`/groups/${session.group_id}/spin`}>
-                        <Button size="sm">
-                          <Play className="w-4 h-4 mr-1" /> Continue
-                        </Button>
-                      </Link>
-                    )}
-                  </div>
+                  {!isComplete && (
+                    <Link to={`/groups/${session.group_id}/spin`}>
+                      <Button size="sm">
+                        <Play className="w-4 h-4 mr-1" /> Continue
+                      </Button>
+                    </Link>
+                  )}
                 </div>
 
                 {/* Spins Table */}
@@ -144,7 +281,8 @@ const SessionHistory = () => {
                             <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Winner</th>
                             <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Members on Wheel</th>
                             <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Previously Selected</th>
-                            <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground w-40">Time</th>
+                            <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground w-32">Time</th>
+                            <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground w-24">Replay</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -221,6 +359,19 @@ const SessionHistory = () => {
                                 <td className="py-3 px-4 text-sm text-muted-foreground">
                                   {format(new Date(spin.created_at), "h:mm:ss a")}
                                 </td>
+
+                                {/* Replay Button */}
+                                <td className="py-3 px-4 text-center">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => playReplay(spin)}
+                                    data-testid={`replay-spin-${spin.id}`}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <Play className="w-4 h-4" />
+                                  </Button>
+                                </td>
                               </tr>
                             );
                           })}
@@ -251,6 +402,64 @@ const SessionHistory = () => {
           })}
         </div>
       )}
+
+      {/* Replay Modal */}
+      <Dialog open={!!replayingSpin} onOpenChange={(open) => !open && closeReplay()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-primary" />
+              Spin #{replayingSpin?.spin_number} Replay
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="flex flex-col items-center py-4">
+            {/* Arrow pointer */}
+            <div className="mb-1">
+              <svg width="30" height="30" viewBox="0 0 30 30">
+                <polygon 
+                  points="15,25 7,7 23,7" 
+                  fill="#3b82f6"
+                  stroke="#1e293b"
+                  strokeWidth="2"
+                />
+              </svg>
+            </div>
+
+            {/* Wheel canvas */}
+            <div className="relative">
+              <canvas
+                ref={canvasRef}
+                width={280}
+                height={280}
+                className="rounded-full"
+              />
+            </div>
+
+            {/* Winner announcement */}
+            {showWinner && replayingSpin && (
+              <div className="mt-4 text-center animate-fade-in-up">
+                <p className="text-sm text-muted-foreground mb-1">
+                  {replayingSpin.is_auto_selected ? "Auto-selected" : "Winner"}
+                </p>
+                <h3 className="text-xl font-bold text-primary flex items-center justify-center gap-2">
+                  <Trophy className="w-5 h-5" />
+                  {replayingSpin.winner_name}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {format(new Date(replayingSpin.created_at), "MMM d, yyyy 'at' h:mm:ss a")}
+                </p>
+              </div>
+            )}
+
+            {isWheelSpinning && (
+              <p className="mt-4 text-sm text-muted-foreground animate-pulse">
+                Spinning...
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };

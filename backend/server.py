@@ -402,6 +402,17 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+def require_role(*allowed_roles):
+    """Dependency to check user role"""
+    async def role_checker(current_user: dict = Depends(get_current_user)):
+        if current_user.get("role") not in allowed_roles:
+            raise HTTPException(
+                status_code=403, 
+                detail=f"Access denied. Required role: {', '.join(allowed_roles)}"
+            )
+        return current_user
+    return role_checker
+
 async def log_audit(user_id: str, user_name: str, action: str, entity_type: str, entity_id: str, details: str = ""):
     audit_log = {
         "id": str(uuid.uuid4()),
@@ -417,6 +428,132 @@ async def log_audit(user_id: str, user_name: str, action: str, entity_type: str,
 
 # ============ AUTH ENDPOINTS ============
 
+# Math challenge endpoint
+@api_router.get("/auth/math-challenge", response_model=MathChallengeResponse)
+async def get_math_challenge():
+    """Generate a math challenge for registration"""
+    challenge = generate_math_challenge()
+    challenge_id = str(uuid.uuid4())
+    
+    # Store challenge temporarily (15 min expiry)
+    await db.math_challenges.insert_one({
+        "id": challenge_id,
+        "answer": challenge["answer"],
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
+    })
+    
+    return MathChallengeResponse(
+        challenge_id=challenge_id,
+        question=challenge["question"],
+        num1=challenge["num1"],
+        num2=challenge["num2"],
+        operation=challenge["operation"]
+    )
+
+# New registration flow - Step 1: Init registration
+@api_router.post("/auth/register/init", response_model=RegistrationInitResponse)
+async def register_init(data: RegistrationInitRequest):
+    """Step 1: Validate math answer and send verification email"""
+    # Check if email already exists
+    existing = await db.users.find_one({"email": data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Check for pending registration
+    pending = await db.pending_registrations.find_one({"email": data.email, "verified": False})
+    if pending:
+        # Delete old pending registration
+        await db.pending_registrations.delete_one({"id": pending["id"]})
+    
+    # Validate password
+    if len(data.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    # Generate verification code
+    verification_code = generate_verification_code()
+    registration_id = str(uuid.uuid4())
+    
+    # Store pending registration
+    await db.pending_registrations.insert_one({
+        "id": registration_id,
+        "email": data.email,
+        "password_hash": hash_password(data.password),
+        "name": data.name,
+        "verification_code": verification_code,
+        "verified": False,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Send verification email
+    email_sent = await send_verification_email(data.email, verification_code, data.name)
+    
+    if not email_sent:
+        # For development/testing, return the code in the response
+        logging.warning(f"Email not sent. Verification code for {data.email}: {verification_code}")
+    
+    return RegistrationInitResponse(
+        registration_id=registration_id,
+        message="Verification code sent to your email. Please check your inbox."
+    )
+
+# New registration flow - Step 2: Verify email
+@api_router.post("/auth/register/verify", response_model=TokenResponse)
+async def register_verify(data: RegistrationVerifyRequest):
+    """Step 2: Verify email code and complete registration"""
+    # Find pending registration
+    pending = await db.pending_registrations.find_one({"id": data.registration_id}, {"_id": 0})
+    
+    if not pending:
+        raise HTTPException(status_code=404, detail="Registration not found or expired")
+    
+    # Check expiry
+    expires_at = datetime.fromisoformat(pending["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        await db.pending_registrations.delete_one({"id": data.registration_id})
+        raise HTTPException(status_code=400, detail="Verification code expired. Please register again.")
+    
+    # Verify code
+    if pending["verification_code"] != data.verification_code:
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+    
+    # Check if email was registered meanwhile
+    existing = await db.users.find_one({"email": pending["email"]})
+    if existing:
+        await db.pending_registrations.delete_one({"id": data.registration_id})
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Create user
+    user_id = str(uuid.uuid4())
+    user = {
+        "id": user_id,
+        "email": pending["email"],
+        "password_hash": pending["password_hash"],
+        "name": pending["name"],
+        "role": ROLE_MODERATOR,
+        "is_verified": True,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.users.insert_one(user)
+    await db.pending_registrations.delete_one({"id": data.registration_id})
+    await log_audit(user_id, pending["name"], "REGISTER", "user", user_id, f"User registered with email verification: {pending['email']}")
+    
+    token = create_token(user_id, pending["email"], ROLE_MODERATOR)
+    
+    return TokenResponse(
+        access_token=token,
+        user=UserResponse(
+            id=user_id,
+            email=pending["email"],
+            name=pending["name"],
+            role=ROLE_MODERATOR,
+            is_verified=True,
+            created_at=user["created_at"]
+        )
+    )
+
+# Legacy register endpoint (for backward compatibility / direct registration)
 @api_router.post("/auth/register", response_model=TokenResponse)
 async def register(user_data: UserCreate):
     existing = await db.users.find_one({"email": user_data.email})
@@ -430,6 +567,7 @@ async def register(user_data: UserCreate):
         "password_hash": hash_password(user_data.password),
         "name": user_data.name,
         "role": user_data.role,
+        "is_verified": True,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     
@@ -445,6 +583,7 @@ async def register(user_data: UserCreate):
             email=user_data.email,
             name=user_data.name,
             role=user_data.role,
+            is_verified=True,
             created_at=user["created_at"]
         )
     )

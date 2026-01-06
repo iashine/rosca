@@ -14,6 +14,7 @@ import bcrypt
 import jwt
 import secrets
 import random
+import asyncio
 from agentmail import AgentMail
 
 ROOT_DIR = Path(__file__).parent
@@ -37,6 +38,11 @@ AGENTMAIL_INBOX = os.environ.get('AGENTMAIL_INBOX', 'noreply@rosca-hcc.net')
 agentmail_client = None
 if AGENTMAIL_API_KEY:
     agentmail_client = AgentMail(api_key=AGENTMAIL_API_KEY)
+
+# Role Constants
+ROLE_SUPERADMIN = "superadmin"
+ROLE_MODERATOR = "moderator"
+ROLE_MEMBER = "member"
 
 # Create the main app
 app = FastAPI(title="ROSCA Spin API")

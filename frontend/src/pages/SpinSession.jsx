@@ -122,7 +122,7 @@ const SpinSession = () => {
 
       toast.success(`${winner.name} wins!`, {
         description: `Spin #${res.data.spin_number}`,
-        icon: <Trophy className="w-4 h-4 text-amber-500" />
+        icon: <Trophy className="w-4 h-4 text-primary" />
       });
 
       // Check if only 1 member left - auto-select them as last winner
@@ -159,7 +159,7 @@ const SpinSession = () => {
 
       toast.success(`${lastMember.name} auto-selected as final winner!`, {
         description: "ROSCA cycle complete!",
-        icon: <Sparkles className="w-4 h-4 text-amber-500" />
+        icon: <Sparkles className="w-4 h-4 text-primary" />
       });
     } catch (error) {
       toast.error("Failed to auto-select last member");
@@ -265,8 +265,8 @@ const SpinSession = () => {
           <div className="lg:col-span-8">
             <Card className="border-border/50">
               <CardContent className="p-8 text-center">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-amber-500/20 to-amber-500/5 flex items-center justify-center mx-auto mb-6">
-                  <Trophy className="w-12 h-12 text-amber-500" />
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto mb-6">
+                  <Trophy className="w-12 h-12 text-primary" />
                 </div>
                 <h2 className="text-2xl font-bold mb-2">Cycle Complete! 🎉</h2>
                 <p className="text-muted-foreground mb-6">
@@ -292,7 +292,7 @@ const SpinSession = () => {
             <Card className="border-border/50 h-full">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-amber-500" />
+                  <Trophy className="w-5 h-5 text-primary" />
                   Selection Order ({spinResults.length})
                 </CardTitle>
               </CardHeader>
@@ -306,8 +306,8 @@ const SpinSession = () => {
                         data-testid={`spin-result-${index}`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500/20 to-amber-500/5 flex items-center justify-center">
-                            <span className="font-bold text-amber-500">#{result.spin_number}</span>
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                            <span className="font-bold text-primary">#{result.spin_number}</span>
                           </div>
                           <div className="flex-1">
                             <p className="font-semibold">{result.winner_name}</p>
@@ -390,7 +390,7 @@ const SpinSession = () => {
             <Card className="border-border/50 h-full">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-amber-500" />
+                  <Trophy className="w-5 h-5 text-primary" />
                   Selected ({spinResults.length})
                 </CardTitle>
               </CardHeader>

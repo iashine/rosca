@@ -6,13 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 import { Badge } from "../components/ui/badge";
-import { ScrollArea } from "../components/ui/scroll-area";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "../components/ui/accordion";
 import { 
   History, 
   Play,
@@ -23,7 +16,7 @@ import {
   Clock,
   ChevronRight,
   Sparkles,
-  Target
+  ArrowRight
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -31,7 +24,6 @@ const SessionHistory = () => {
   const [sessions, setSessions] = useState([]);
   const [spinsBySession, setSpinsBySession] = useState({});
   const [loading, setLoading] = useState(true);
-  const [expandedSpins, setExpandedSpins] = useState({});
 
   useEffect(() => {
     const fetchData = async () => {
@@ -60,22 +52,14 @@ const SessionHistory = () => {
     fetchData();
   }, []);
 
-  // Get cumulative winners up to a specific spin
-  const getCumulativeWinners = (spins, upToIndex) => {
-    return spins.slice(0, upToIndex).map(s => ({
-      name: s.winner_name,
-      spin_number: s.spin_number
-    }));
-  };
-
   return (
     <Layout title="Spin History">
-      <p className="text-muted-foreground mb-8">Complete record of all spins with member tracking</p>
+      <p className="text-muted-foreground mb-8">Complete record of all spins</p>
 
       {loading ? (
         <div className="space-y-4">
-          {[1, 2, 3, 4, 5].map(i => (
-            <Skeleton key={i} className="h-32 w-full" />
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="h-48 w-full" />
           ))}
         </div>
       ) : sessions.length === 0 ? (
@@ -90,220 +74,179 @@ const SessionHistory = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {sessions.map((session) => {
             const spins = spinsBySession[session.id] || [];
             const isComplete = session.status === "completed";
             
             return (
-              <Card key={session.id} className="border-border/50" data-testid={`session-${session.id}`}>
+              <div key={session.id} data-testid={`session-${session.id}`}>
                 {/* Session Header */}
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                        isComplete 
-                          ? "bg-gradient-to-br from-emerald-500/20 to-emerald-500/5" 
-                          : "bg-gradient-to-br from-amber-500/20 to-amber-500/5"
-                      }`}>
-                        {isComplete ? (
-                          <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-                        ) : (
-                          <Clock className="w-6 h-6 text-amber-500" />
-                        )}
-                      </div>
-                      <div>
-                        <CardTitle className="text-lg">{session.group_name}</CardTitle>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            {format(new Date(session.started_at), "MMM d, yyyy")}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Users className="w-4 h-4" />
-                            {session.total_members} total members
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={isComplete ? "default" : "secondary"}>
-                        {isComplete ? "Cycle Complete" : `${session.remaining_members} remaining`}
-                      </Badge>
-                      {!isComplete && (
-                        <Link to={`/groups/${session.group_id}/spin`}>
-                          <Button size="sm">
-                            <Play className="w-4 h-4 mr-1" /> Continue
-                          </Button>
-                        </Link>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      isComplete 
+                        ? "bg-emerald-500/20" 
+                        : "bg-primary/20"
+                    }`}>
+                      {isComplete ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                      ) : (
+                        <Clock className="w-5 h-5 text-primary" />
                       )}
                     </div>
+                    <div>
+                      <h2 className="text-lg font-semibold">{session.group_name}</h2>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="w-4 h-4" />
+                        {format(new Date(session.started_at), "MMM d, yyyy")}
+                        <span>•</span>
+                        <Users className="w-4 h-4" />
+                        {session.total_members} members
+                        <span>•</span>
+                        <Badge variant={isComplete ? "default" : "secondary"} className="text-xs">
+                          {isComplete ? "Complete" : `${session.remaining_members} left`}
+                        </Badge>
+                      </div>
+                    </div>
                   </div>
-                </CardHeader>
+                  <div className="flex items-center gap-2">
+                    {isComplete ? (
+                      <Link to={`/sessions/${session.id}/replay`}>
+                        <Button variant="outline" size="sm">
+                          <Play className="w-4 h-4 mr-1" /> Replay
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Link to={`/groups/${session.group_id}/spin`}>
+                        <Button size="sm">
+                          <Play className="w-4 h-4 mr-1" /> Continue
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                </div>
 
-                {/* Individual Spin Records */}
-                <CardContent>
-                  {spins.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">No spins recorded yet</p>
-                  ) : (
-                    <div className="space-y-3 mt-2">
-                      {spins.map((spin, index) => {
-                        const previousWinners = getCumulativeWinners(spins, index);
-                        const membersOnWheel = spin.members_at_spin || [];
-                        
-                        return (
-                          <div 
-                            key={spin.id}
-                            className="border border-border/50 rounded-xl overflow-hidden bg-card/50"
-                            data-testid={`spin-record-${spin.id}`}
-                          >
-                            {/* Spin Header - Always visible */}
-                            <div 
-                              className="p-4 cursor-pointer hover:bg-muted/30 transition-colors"
-                              onClick={() => setExpandedSpins(prev => ({
-                                ...prev,
-                                [spin.id]: !prev[spin.id]
-                              }))}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                  {/* Spin Number */}
-                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                {/* Spins Table */}
+                {spins.length === 0 ? (
+                  <Card className="border-border/50">
+                    <CardContent className="py-8 text-center text-muted-foreground">
+                      No spins recorded yet
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card className="border-border/50 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-border bg-muted/30">
+                            <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground w-16">#</th>
+                            <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Winner</th>
+                            <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Members on Wheel</th>
+                            <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Previously Selected</th>
+                            <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground w-40">Time</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {spins.map((spin, index) => {
+                            const previousWinners = spins.slice(0, index).map(s => s.winner_name);
+                            const membersOnWheel = spin.members_at_spin || [];
+                            
+                            return (
+                              <tr 
+                                key={spin.id} 
+                                className="border-b border-border/50 hover:bg-muted/20 transition-colors"
+                                data-testid={`spin-row-${spin.id}`}
+                              >
+                                {/* Spin Number */}
+                                <td className="py-3 px-4">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                                     spin.is_auto_selected 
                                       ? "bg-violet-500/20 text-violet-500"
                                       : "bg-primary/20 text-primary"
                                   }`}>
-                                    #{spin.spin_number}
+                                    {spin.spin_number}
                                   </div>
-                                  
-                                  {/* Winner Info */}
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <Trophy className="w-4 h-4 text-primary" />
-                                      <span className="font-semibold">{spin.winner_name}</span>
-                                      {spin.is_auto_selected && (
-                                        <Badge variant="secondary" className="text-xs">
-                                          <Sparkles className="w-3 h-3 mr-1" />
-                                          Auto-selected
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">
-                                      {format(new Date(spin.created_at), "MMM d, yyyy 'at' h:mm:ss a")}
-                                    </p>
+                                </td>
+                                
+                                {/* Winner */}
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-2">
+                                    <Trophy className="w-4 h-4 text-primary" />
+                                    <span className="font-medium">{spin.winner_name}</span>
+                                    {spin.is_auto_selected && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        <Sparkles className="w-3 h-3 mr-1" />
+                                        Auto
+                                      </Badge>
+                                    )}
                                   </div>
-                                </div>
-
-                                {/* Quick Stats */}
-                                <div className="flex items-center gap-4">
-                                  <div className="text-right">
-                                    <p className="text-sm font-medium">{membersOnWheel.length} on wheel</p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {previousWinners.length} previously selected
-                                    </p>
-                                  </div>
-                                  <ChevronRight className={`w-5 h-5 text-muted-foreground transition-transform ${
-                                    expandedSpins[spin.id] ? "rotate-90" : ""
-                                  }`} />
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Expanded Details */}
-                            {expandedSpins[spin.id] && (
-                              <div className="px-4 pb-4 pt-0 border-t border-border/50 bg-muted/20">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                  {/* Members on Wheel */}
-                                  <div>
-                                    <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                                      <Target className="w-4 h-4 text-blue-500" />
-                                      Members on Wheel ({membersOnWheel.length})
-                                    </h4>
-                                    <div className="flex flex-wrap gap-1">
-                                      {membersOnWheel.map((member) => (
+                                </td>
+                                
+                                {/* Members on Wheel */}
+                                <td className="py-3 px-4">
+                                  <div className="flex flex-wrap gap-1">
+                                    {membersOnWheel.length > 0 ? (
+                                      membersOnWheel.map((member) => (
                                         <Badge 
                                           key={member.id} 
                                           variant={member.id === spin.winner_member_id ? "default" : "outline"}
                                           className="text-xs"
                                         >
                                           {member.name}
-                                          {member.id === spin.winner_member_id && (
-                                            <Trophy className="w-3 h-3 ml-1" />
-                                          )}
+                                        </Badge>
+                                      ))
+                                    ) : (
+                                      <span className="text-sm text-muted-foreground">-</span>
+                                    )}
+                                  </div>
+                                </td>
+                                
+                                {/* Previously Selected */}
+                                <td className="py-3 px-4">
+                                  {previousWinners.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {previousWinners.map((name, idx) => (
+                                        <Badge key={idx} variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-600">
+                                          {name}
                                         </Badge>
                                       ))}
                                     </div>
-                                  </div>
-
-                                  {/* Previously Selected */}
-                                  <div>
-                                    <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                                      Previously Selected ({previousWinners.length})
-                                    </h4>
-                                    {previousWinners.length === 0 ? (
-                                      <p className="text-xs text-muted-foreground">First spin - no previous winners</p>
-                                    ) : (
-                                      <div className="flex flex-wrap gap-1">
-                                        {previousWinners.map((winner, idx) => (
-                                          <Badge key={idx} variant="secondary" className="text-xs">
-                                            #{winner.spin_number} {winner.name}
-                                          </Badge>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Progression Summary */}
-                                <div className="mt-4 p-3 bg-muted/30 rounded-lg">
-                                  <p className="text-sm">
-                                    <span className="font-medium">Spin #{spin.spin_number}:</span>{" "}
-                                    {membersOnWheel.length} members competed → <span className="text-primary font-medium">{spin.winner_name}</span> won
-                                    {index < spins.length - 1 && (
-                                      <span className="text-muted-foreground">
-                                        {" "}→ {membersOnWheel.length - 1} members continue to next spin
-                                      </span>
-                                    )}
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground">First spin</span>
+                                  )}
+                                </td>
+                                
+                                {/* Time */}
+                                <td className="py-3 px-4 text-sm text-muted-foreground">
+                                  {format(new Date(spin.created_at), "h:mm:ss a")}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                  )}
-
-                  {/* Cycle Summary */}
-                  {spins.length > 0 && (
-                    <div className="mt-4 p-4 bg-muted/30 rounded-xl">
-                      <h4 className="text-sm font-medium mb-2">Selection Order</h4>
-                      <div className="flex flex-wrap gap-2">
+                    
+                    {/* Quick Summary Footer */}
+                    <div className="px-4 py-3 bg-muted/20 border-t border-border/50">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-muted-foreground">Selection order:</span>
                         {spins.map((spin, idx) => (
-                          <div key={spin.id} className="flex items-center">
-                            <Badge variant={spin.is_auto_selected ? "secondary" : "default"} className="text-xs">
-                              #{spin.spin_number} {spin.winner_name}
-                            </Badge>
+                          <span key={spin.id} className="flex items-center">
+                            <span className={`font-medium ${spin.is_auto_selected ? "text-violet-500" : "text-foreground"}`}>
+                              {spin.winner_name}
+                            </span>
                             {idx < spins.length - 1 && (
-                              <ChevronRight className="w-4 h-4 text-muted-foreground mx-1" />
+                              <ArrowRight className="w-3 h-3 mx-1 text-muted-foreground" />
                             )}
-                          </div>
+                          </span>
                         ))}
                       </div>
-                      {isComplete && (
-                        <div className="mt-3 flex items-center gap-2">
-                          <Link to={`/sessions/${session.id}/replay`}>
-                            <Button size="sm" variant="outline">
-                              <Play className="w-4 h-4 mr-1" /> Watch Replay
-                            </Button>
-                          </Link>
-                        </div>
-                      )}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </Card>
+                )}
+              </div>
             );
           })}
         </div>

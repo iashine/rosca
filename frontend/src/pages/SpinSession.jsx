@@ -203,6 +203,7 @@ const SpinSession = () => {
             <Card className="border-border/50 overflow-hidden">
               <CardContent className="p-8 flex flex-col items-center">
                 <SpinWheel
+                  key={availableMembers.map(m => m.id).join(',')}
                   members={availableMembers}
                   wheelColors={wheelTheme.wheel_colors}
                   onSpinEnd={handleSpinEnd}

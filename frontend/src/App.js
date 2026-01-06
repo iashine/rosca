@@ -5,8 +5,10 @@ import axios from "axios";
 import { Toaster, toast } from "sonner";
 
 // Pages
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
 import Groups from "./pages/Groups";
 import GroupDetail from "./pages/GroupDetail";
@@ -15,6 +17,7 @@ import SessionHistory from "./pages/SessionHistory";
 import SessionReplay from "./pages/SessionReplay";
 import ThemeSettings from "./pages/ThemeSettings";
 import AuditLogs from "./pages/AuditLogs";
+import AdminDashboard from "./pages/AdminDashboard";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;

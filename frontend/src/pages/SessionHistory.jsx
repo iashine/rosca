@@ -37,8 +37,11 @@ const SessionHistory = () => {
   const [replayingSpin, setReplayingSpin] = useState(null);
   const [isWheelSpinning, setIsWheelSpinning] = useState(false);
   const [showWinner, setShowWinner] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [canClose, setCanClose] = useState(true);
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
+  const countdownRef = useRef(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -132,6 +135,8 @@ const SessionHistory = () => {
     setReplayingSpin(spin);
     setShowWinner(false);
     setIsWheelSpinning(true);
+    setCanClose(false);
+    setCountdown(0);
 
     // Wait for dialog to open and canvas to be ready
     setTimeout(() => {
@@ -139,6 +144,7 @@ const SessionHistory = () => {
       if (!canvas || !spin.members_at_spin || spin.members_at_spin.length === 0) {
         setIsWheelSpinning(false);
         setShowWinner(true);
+        startCountdown();
         return;
       }
 
@@ -150,6 +156,7 @@ const SessionHistory = () => {
         drawWheel(canvas, members, 0, spin.winner_member_id);
         setIsWheelSpinning(false);
         setShowWinner(true);
+        startCountdown();
         return;
       }
 
@@ -180,6 +187,9 @@ const SessionHistory = () => {
             origin: { y: 0.6 },
             colors: wheelTheme.wheel_colors
           });
+
+          // Start 10 second countdown
+          startCountdown();
         }
       };
 
@@ -188,13 +198,34 @@ const SessionHistory = () => {
     }, 100);
   }, [drawWheel, wheelTheme.wheel_colors]);
 
+  const startCountdown = () => {
+    setCountdown(10);
+    countdownRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownRef.current);
+          setCanClose(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   const closeReplay = () => {
+    if (!canClose) return; // Prevent closing during countdown
+    
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
+    }
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
     }
     setReplayingSpin(null);
     setIsWheelSpinning(false);
     setShowWinner(false);
+    setCountdown(0);
+    setCanClose(true);
   };
 
   return (
@@ -405,11 +436,18 @@ const SessionHistory = () => {
 
       {/* Replay Modal */}
       <Dialog open={!!replayingSpin} onOpenChange={(open) => !open && closeReplay()}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => !canClose && e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-primary" />
-              Spin #{replayingSpin?.spin_number} Replay
+            <DialogTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-primary" />
+                Spin #{replayingSpin?.spin_number} Replay
+              </span>
+              {countdown > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {countdown}s
+                </Badge>
+              )}
             </DialogTitle>
           </DialogHeader>
           
@@ -449,6 +487,11 @@ const SessionHistory = () => {
                 <p className="text-xs text-muted-foreground mt-1">
                   {format(new Date(replayingSpin.created_at), "MMM d, yyyy 'at' h:mm:ss a")}
                 </p>
+                {countdown > 0 && (
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Closing in {countdown} seconds...
+                  </p>
+                )}
               </div>
             )}
 
@@ -458,6 +501,19 @@ const SessionHistory = () => {
               </p>
             )}
           </div>
+
+          {/* Close button - only enabled after countdown */}
+          {showWinner && (
+            <div className="flex justify-center pb-2">
+              <Button 
+                onClick={closeReplay} 
+                disabled={!canClose}
+                variant={canClose ? "default" : "secondary"}
+              >
+                {canClose ? "Close" : `Wait ${countdown}s...`}
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </Layout>

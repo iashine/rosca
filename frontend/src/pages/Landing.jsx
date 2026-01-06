@@ -1,6 +1,9 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
+import { Skeleton } from "../components/ui/skeleton";
+import axios from "axios";
 import { 
   Users, 
   Shield, 
@@ -13,63 +16,95 @@ import {
   Sparkles
 } from "lucide-react";
 
-const features = [
-  {
-    icon: Users,
-    title: "Group Management",
-    description: "Create and manage multiple ROSCA groups with unlimited members."
-  },
-  {
-    icon: RefreshCw,
-    title: "Fair Spinning",
-    description: "Cryptographically secure random selection ensures fair winner picks."
-  },
-  {
-    icon: History,
-    title: "Full History",
-    description: "Complete audit trail of every spin with replay functionality."
-  },
-  {
-    icon: Palette,
-    title: "Customization",
-    description: "Personalize your wheel colors and theme preferences."
-  },
-  {
-    icon: Shield,
-    title: "Secure Access",
-    description: "Email verification and role-based access control."
-  },
-  {
-    icon: Lock,
-    title: "Data Protection",
-    description: "Your group and member data is securely stored and encrypted."
-  }
-];
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
-const steps = [
-  {
-    number: "01",
-    title: "Create an Account",
-    description: "Sign up as a moderator with email verification to get started."
-  },
-  {
-    number: "02",
-    title: "Set Up Your Group",
-    description: "Create a ROSCA group and add all participating members."
-  },
-  {
-    number: "03",
-    title: "Start Spinning",
-    description: "Each cycle, spin the wheel to fairly select the next recipient."
-  },
-  {
-    number: "04",
-    title: "Track Progress",
-    description: "Monitor your group's history and replay past sessions anytime."
-  }
-];
+// Icon mapping for dynamic rendering
+const iconMap = {
+  Users,
+  Shield,
+  RefreshCw,
+  History,
+  Palette,
+  Lock
+};
+
+// Default content (fallback if CMS is empty)
+const defaultContent = {
+  landing_hero_badge: "Trusted by savings groups worldwide",
+  landing_hero_title: "Manage Your Rotating Savings Groups with Ease",
+  landing_hero_subtitle: "ROSCA Spin provides a fair, transparent, and secure way to manage your community savings circles. Spin the wheel and let luck decide who receives the pot next.",
+  landing_features_title: "Everything You Need",
+  landing_features_subtitle: "Powerful features to manage your savings groups efficiently and transparently.",
+  landing_features_list: [
+    { icon: "Users", title: "Group Management", description: "Create and manage multiple ROSCA groups with unlimited members." },
+    { icon: "RefreshCw", title: "Fair Spinning", description: "Cryptographically secure random selection ensures fair winner picks." },
+    { icon: "History", title: "Full History", description: "Complete audit trail of every spin with replay functionality." },
+    { icon: "Palette", title: "Customization", description: "Personalize your wheel colors and theme preferences." },
+    { icon: "Shield", title: "Secure Access", description: "Email verification and role-based access control." },
+    { icon: "Lock", title: "Data Protection", description: "Your group and member data is securely stored and encrypted." }
+  ],
+  landing_steps_title: "How It Works",
+  landing_steps_subtitle: "Get started in minutes with our simple four-step process.",
+  landing_steps_list: [
+    { number: "01", title: "Create an Account", description: "Sign up as a moderator with email verification to get started." },
+    { number: "02", title: "Set Up Your Group", description: "Create a ROSCA group and add all participating members." },
+    { number: "03", title: "Start Spinning", description: "Each cycle, spin the wheel to fairly select the next recipient." },
+    { number: "04", title: "Track Progress", description: "Monitor your group's history and replay past sessions anytime." }
+  ],
+  landing_benefits_title: "Why Choose ROSCA Spin?",
+  landing_benefits_list: [
+    "Transparent and fair selection process",
+    "Complete history and audit trail",
+    "Secure email verification",
+    "Mobile-friendly interface",
+    "Customizable wheel themes",
+    "Free to use for all groups"
+  ],
+  landing_cta_title: "Ready to Get Started?",
+  landing_cta_subtitle: "Join thousands of savings groups already using ROSCA Spin for fair and transparent member selection.",
+  landing_footer_text: "© 2025 ROSCA Spin. All rights reserved."
+};
 
 const Landing = () => {
+  const [content, setContent] = useState(defaultContent);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCmsContent = async () => {
+      try {
+        const res = await axios.get(`${BACKEND_URL}/api/cms/content`);
+        const cmsData = res.data;
+        
+        // Convert array to key-value object
+        const cmsContent = {};
+        cmsData.forEach(item => {
+          if (item.content_type === "json") {
+            try {
+              cmsContent[item.key] = JSON.parse(item.content);
+            } catch {
+              cmsContent[item.key] = item.content;
+            }
+          } else {
+            cmsContent[item.key] = item.content;
+          }
+        });
+        
+        // Merge with defaults
+        setContent(prev => ({ ...prev, ...cmsContent }));
+      } catch (error) {
+        console.error("Failed to fetch CMS content, using defaults");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCmsContent();
+  }, []);
+
+  const features = content.landing_features_list || defaultContent.landing_features_list;
+  const steps = content.landing_steps_list || defaultContent.landing_steps_list;
+  const benefits = content.landing_benefits_list || defaultContent.landing_benefits_list;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Navbar */}
@@ -104,18 +139,21 @@ const Landing = () => {
           <div className="text-center max-w-4xl mx-auto">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium mb-8">
               <Sparkles className="w-4 h-4" />
-              Trusted by savings groups worldwide
+              {loading ? <Skeleton className="h-4 w-48 bg-slate-700" /> : content.landing_hero_badge}
             </div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight mb-6">
-              Manage Your{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">
-                Rotating Savings
-              </span>{" "}
-              Groups with Ease
+              {loading ? (
+                <Skeleton className="h-16 w-full bg-slate-700" />
+              ) : (
+                <>
+                  {content.landing_hero_title.split("Rotating").map((part, i) => 
+                    i === 0 ? part : <><span key={i} className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Rotating</span>{part}</>
+                  )}
+                </>
+              )}
             </h1>
             <p className="text-lg sm:text-xl text-slate-400 mb-10 max-w-2xl mx-auto">
-              ROSCA Spin provides a fair, transparent, and secure way to manage your community savings circles. 
-              Spin the wheel and let luck decide who receives the pot next.
+              {loading ? <Skeleton className="h-20 w-full bg-slate-700" /> : content.landing_hero_subtitle}
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link to="/register">
@@ -173,31 +211,43 @@ const Landing = () => {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Everything You Need
+              {loading ? <Skeleton className="h-10 w-64 mx-auto bg-slate-700" /> : content.landing_features_title}
             </h2>
             <p className="text-lg text-slate-400 max-w-2xl mx-auto">
-              Powerful features to manage your savings groups efficiently and transparently.
+              {loading ? <Skeleton className="h-6 w-96 mx-auto bg-slate-700" /> : content.landing_features_subtitle}
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((feature, index) => {
-              const Icon = feature.icon;
-              return (
-                <Card 
-                  key={index} 
-                  className="bg-slate-800/50 border-slate-700/50 hover:border-blue-500/50 transition-all duration-300 hover:-translate-y-1"
-                  data-testid={`feature-card-${index}`}
-                >
+            {loading ? (
+              [1, 2, 3, 4, 5, 6].map(i => (
+                <Card key={i} className="bg-slate-800/50 border-slate-700/50">
                   <CardContent className="p-6">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 flex items-center justify-center mb-4">
-                      <Icon className="w-6 h-6 text-blue-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white mb-2">{feature.title}</h3>
-                    <p className="text-slate-400">{feature.description}</p>
+                    <Skeleton className="w-12 h-12 rounded-xl bg-slate-700 mb-4" />
+                    <Skeleton className="h-6 w-32 bg-slate-700 mb-2" />
+                    <Skeleton className="h-16 w-full bg-slate-700" />
                   </CardContent>
                 </Card>
-              );
-            })}
+              ))
+            ) : (
+              features.map((feature, index) => {
+                const Icon = iconMap[feature.icon] || Users;
+                return (
+                  <Card 
+                    key={index} 
+                    className="bg-slate-800/50 border-slate-700/50 hover:border-blue-500/50 transition-all duration-300 hover:-translate-y-1"
+                    data-testid={`feature-card-${index}`}
+                  >
+                    <CardContent className="p-6">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 flex items-center justify-center mb-4">
+                        <Icon className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-white mb-2">{feature.title}</h3>
+                      <p className="text-slate-400">{feature.description}</p>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
           </div>
         </div>
       </section>
@@ -207,27 +257,37 @@ const Landing = () => {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              How It Works
+              {loading ? <Skeleton className="h-10 w-48 mx-auto bg-slate-700" /> : content.landing_steps_title}
             </h2>
             <p className="text-lg text-slate-400 max-w-2xl mx-auto">
-              Get started in minutes with our simple four-step process.
+              {loading ? <Skeleton className="h-6 w-80 mx-auto bg-slate-700" /> : content.landing_steps_subtitle}
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {steps.map((step, index) => (
-              <div key={index} className="relative" data-testid={`step-${index}`}>
-                {index < steps.length - 1 && (
-                  <div className="hidden lg:block absolute top-8 left-[60%] w-full h-0.5 bg-gradient-to-r from-blue-500/50 to-transparent" />
-                )}
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-2xl font-bold mb-4 shadow-lg shadow-blue-500/25">
-                    {step.number}
-                  </div>
-                  <h3 className="text-lg font-semibold text-white mb-2">{step.title}</h3>
-                  <p className="text-slate-400">{step.description}</p>
+            {loading ? (
+              [1, 2, 3, 4].map(i => (
+                <div key={i} className="text-center">
+                  <Skeleton className="w-16 h-16 rounded-2xl mx-auto bg-slate-700 mb-4" />
+                  <Skeleton className="h-6 w-32 mx-auto bg-slate-700 mb-2" />
+                  <Skeleton className="h-12 w-full bg-slate-700" />
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              steps.map((step, index) => (
+                <div key={index} className="relative" data-testid={`step-${index}`}>
+                  {index < steps.length - 1 && (
+                    <div className="hidden lg:block absolute top-8 left-[60%] w-full h-0.5 bg-gradient-to-r from-blue-500/50 to-transparent" />
+                  )}
+                  <div className="text-center">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-2xl font-bold mb-4 shadow-lg shadow-blue-500/25">
+                      {step.number}
+                    </div>
+                    <h3 className="text-lg font-semibold text-white mb-2">{step.title}</h3>
+                    <p className="text-slate-400">{step.description}</p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </section>
@@ -238,22 +298,21 @@ const Landing = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
-                Why Choose ROSCA Spin?
+                {loading ? <Skeleton className="h-10 w-64 bg-slate-700" /> : content.landing_benefits_title}
               </h2>
               <div className="space-y-4">
-                {[
-                  "Transparent and fair selection process",
-                  "Complete history and audit trail",
-                  "Secure email verification",
-                  "Mobile-friendly interface",
-                  "Customizable wheel themes",
-                  "Free to use for all groups"
-                ].map((benefit, index) => (
-                  <div key={index} className="flex items-center gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
-                    <span className="text-slate-300">{benefit}</span>
-                  </div>
-                ))}
+                {loading ? (
+                  [1, 2, 3, 4, 5, 6].map(i => (
+                    <Skeleton key={i} className="h-6 w-full bg-slate-700" />
+                  ))
+                ) : (
+                  benefits.map((benefit, index) => (
+                    <div key={index} className="flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
+                      <span className="text-slate-300">{benefit}</span>
+                    </div>
+                  ))
+                )}
               </div>
               <div className="mt-8">
                 <Link to="/register">
@@ -307,10 +366,10 @@ const Landing = () => {
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Ready to Get Started?
+            {loading ? <Skeleton className="h-10 w-64 mx-auto bg-slate-700" /> : content.landing_cta_title}
           </h2>
           <p className="text-lg text-slate-400 mb-8">
-            Join thousands of savings groups already using ROSCA Spin for fair and transparent member selection.
+            {loading ? <Skeleton className="h-6 w-96 mx-auto bg-slate-700" /> : content.landing_cta_subtitle}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link to="/register">
@@ -329,7 +388,9 @@ const Landing = () => {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
               <span className="text-sm font-bold text-white">R</span>
             </div>
-            <span className="text-slate-400">© 2025 ROSCA Spin. All rights reserved.</span>
+            <span className="text-slate-400">
+              {loading ? <Skeleton className="h-4 w-48 bg-slate-700" /> : content.landing_footer_text}
+            </span>
           </div>
           <div className="flex items-center gap-6">
             <Link to="/login" className="text-slate-400 hover:text-white transition-colors">

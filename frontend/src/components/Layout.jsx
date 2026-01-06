@@ -153,7 +153,7 @@ export const Layout = ({ children, title }) => {
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-border bg-card">
             <nav className="px-4 py-4 space-y-1">
-              {navItems.map((item) => {
+              {currentNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
                 return (

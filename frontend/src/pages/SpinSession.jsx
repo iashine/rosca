@@ -117,19 +117,43 @@ const SpinSession = () => {
 
       // Add to results list
       setSpinResults(prev => [...prev, res.data]);
-
-      // Remove winner from available members
-      const newAvailable = availableMembers.filter(m => m.id !== winner.id);
-      setAvailableMembers(newAvailable);
+      
+      // Show winner and start countdown
+      setCurrentWinner(winner);
+      setCountdown(10);
 
       toast.success(`${winner.name} wins!`, {
-        description: `Spin #${res.data.spin_number}`,
-        icon: <Trophy className="w-4 h-4 text-primary" />
+        description: `Spin #${res.data.spin_number} - Removing in 10 seconds...`,
+        icon: <Trophy className="w-4 h-4 text-primary" />,
+        duration: 10000
       });
 
-      // Check if only 1 member left - auto-select them as last winner
-      if (newAvailable.length === 1) {
-        await autoSelectLastMember(newAvailable[0]);
+      // Countdown and remove after 10 seconds
+      const countdownInterval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // Remove winner after 10 seconds
+      setTimeout(() => {
+        setCurrentWinner(null);
+        const newAvailable = availableMembers.filter(m => m.id !== winner.id);
+        setAvailableMembers(newAvailable);
+
+        // Check if only 1 member left - auto-select them as last winner
+        if (newAvailable.length === 1) {
+          autoSelectLastMember(newAvailable[0]);
+        } else if (newAvailable.length === 0) {
+          // Session complete
+          setSessionComplete(true);
+          toast.success("🎉 ROSCA cycle complete! All members have been selected.");
+        }
+      }, 10000);
       } else if (newAvailable.length === 0) {
         // Session complete
         setSessionComplete(true);

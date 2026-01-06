@@ -423,7 +423,7 @@ const SessionReplay = () => {
                           <>Spin #{currentWinner.spin_number} Winner</>
                         )}
                       </p>
-                      <h2 className="text-2xl font-bold text-amber-500" data-testid="current-winner-name">
+                      <h2 className="text-2xl font-bold text-primary" data-testid="current-winner-name">
                         {currentWinner.winner_name}
                       </h2>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -462,7 +462,7 @@ const SessionReplay = () => {
           <Card className="border-border/50 h-full">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-amber-500" />
+                <Trophy className="w-5 h-5 text-primary" />
                 Selection Order ({spinResults.length})
               </CardTitle>
             </CardHeader>
@@ -481,7 +481,7 @@ const SessionReplay = () => {
                         disabled={isWheelSpinning}
                         className={`w-full text-left relative flex flex-col gap-2 p-4 rounded-xl border transition-all duration-300 hover:border-primary/50 ${
                           replayIndex === index 
-                            ? "border-amber-500/50 bg-amber-500/10" 
+                            ? "border-primary/50 bg-primary/10" 
                             : replayIndex > index
                             ? "border-emerald-500/30 bg-emerald-500/5"
                             : "border-border/50 bg-card"

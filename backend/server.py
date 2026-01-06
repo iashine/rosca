@@ -607,6 +607,7 @@ async def login(credentials: UserLogin):
             email=user["email"],
             name=user["name"],
             role=user["role"],
+            is_verified=user.get("is_verified", True),
             created_at=user["created_at"]
         )
     )
@@ -618,8 +619,221 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         email=current_user["email"],
         name=current_user["name"],
         role=current_user["role"],
+        is_verified=current_user.get("is_verified", True),
         created_at=current_user["created_at"]
     )
+
+# Password Reset Endpoints
+@api_router.post("/auth/forgot-password")
+async def forgot_password(data: ForgotPasswordRequest):
+    """Send password reset code to email"""
+    user = await db.users.find_one({"email": data.email}, {"_id": 0})
+    
+    # Always return success to prevent email enumeration
+    if not user:
+        return {"message": "If an account exists with this email, you will receive a reset code."}
+    
+    # Generate reset token (6 digit code)
+    reset_token = generate_verification_code()
+    
+    # Store reset token
+    await db.password_resets.delete_many({"email": data.email})  # Remove old tokens
+    await db.password_resets.insert_one({
+        "id": str(uuid.uuid4()),
+        "email": data.email,
+        "token": reset_token,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Send reset email
+    email_sent = await send_password_reset_email(data.email, reset_token, user["name"])
+    
+    if not email_sent:
+        logging.warning(f"Password reset email not sent. Code for {data.email}: {reset_token}")
+    
+    return {"message": "If an account exists with this email, you will receive a reset code."}
+
+@api_router.post("/auth/reset-password")
+async def reset_password(data: ResetPasswordRequest):
+    """Reset password using the code sent via email"""
+    # Find reset token
+    reset_record = await db.password_resets.find_one({"token": data.reset_token}, {"_id": 0})
+    
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset code")
+    
+    # Check expiry
+    expires_at = datetime.fromisoformat(reset_record["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        await db.password_resets.delete_one({"token": data.reset_token})
+        raise HTTPException(status_code=400, detail="Reset code has expired. Please request a new one.")
+    
+    # Validate new password
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    # Update password
+    user = await db.users.find_one({"email": reset_record["email"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=400, detail="User not found")
+    
+    await db.users.update_one(
+        {"email": reset_record["email"]},
+        {"$set": {"password_hash": hash_password(data.new_password)}}
+    )
+    
+    # Delete reset token
+    await db.password_resets.delete_one({"token": data.reset_token})
+    
+    await log_audit(user["id"], user["name"], "PASSWORD_RESET", "user", user["id"], "Password reset successfully")
+    
+    return {"message": "Password reset successfully. You can now login with your new password."}
+
+@api_router.post("/auth/change-password")
+async def change_password(data: ChangePasswordRequest, current_user: dict = Depends(get_current_user)):
+    """Change password for logged-in user"""
+    # Verify current password
+    if not verify_password(data.current_password, current_user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    
+    # Validate new password
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    # Update password
+    await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$set": {"password_hash": hash_password(data.new_password)}}
+    )
+    
+    await log_audit(current_user["id"], current_user["name"], "PASSWORD_CHANGE", "user", current_user["id"], "Password changed")
+    
+    return {"message": "Password changed successfully"}
+
+# ============ ADMIN / USER MANAGEMENT ENDPOINTS ============
+
+@api_router.get("/admin/users", response_model=List[UserListResponse])
+async def list_users(current_user: dict = Depends(require_role(ROLE_SUPERADMIN))):
+    """List all users (superadmin only)"""
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    
+    return [UserListResponse(
+        id=u["id"],
+        email=u["email"],
+        name=u["name"],
+        role=u["role"],
+        is_verified=u.get("is_verified", True),
+        created_at=u["created_at"]
+    ) for u in users]
+
+@api_router.put("/admin/users/{user_id}/role")
+async def update_user_role(user_id: str, data: UserUpdateRole, current_user: dict = Depends(require_role(ROLE_SUPERADMIN))):
+    """Update user role (superadmin only)"""
+    if data.role not in [ROLE_SUPERADMIN, ROLE_MODERATOR, ROLE_MEMBER]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Prevent demoting yourself
+    if user_id == current_user["id"] and data.role != ROLE_SUPERADMIN:
+        raise HTTPException(status_code=400, detail="Cannot change your own role")
+    
+    await db.users.update_one({"id": user_id}, {"$set": {"role": data.role}})
+    await log_audit(current_user["id"], current_user["name"], "UPDATE_ROLE", "user", user_id, f"Changed role to {data.role}")
+    
+    return {"message": f"User role updated to {data.role}"}
+
+@api_router.delete("/admin/users/{user_id}")
+async def delete_user(user_id: str, current_user: dict = Depends(require_role(ROLE_SUPERADMIN))):
+    """Delete user (superadmin only)"""
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Prevent deleting yourself
+    if user_id == current_user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    
+    await db.users.delete_one({"id": user_id})
+    await log_audit(current_user["id"], current_user["name"], "DELETE_USER", "user", user_id, f"Deleted user: {user['email']}")
+    
+    return {"message": "User deleted successfully"}
+
+# ============ CMS ENDPOINTS ============
+
+@api_router.get("/cms/content")
+async def get_all_cms_content():
+    """Get all CMS content (public)"""
+    content = await db.cms_content.find({}, {"_id": 0}).to_list(100)
+    return content
+
+@api_router.get("/cms/content/{key}")
+async def get_cms_content(key: str):
+    """Get specific CMS content by key (public)"""
+    content = await db.cms_content.find_one({"key": key}, {"_id": 0})
+    if not content:
+        raise HTTPException(status_code=404, detail="Content not found")
+    return content
+
+@api_router.post("/cms/content", response_model=CMSContentResponse)
+async def create_cms_content(data: CMSContentCreate, current_user: dict = Depends(require_role(ROLE_SUPERADMIN))):
+    """Create CMS content (superadmin only)"""
+    # Check if key already exists
+    existing = await db.cms_content.find_one({"key": data.key})
+    if existing:
+        raise HTTPException(status_code=400, detail="Content with this key already exists")
+    
+    content_id = str(uuid.uuid4())
+    content = {
+        "id": content_id,
+        "key": data.key,
+        "title": data.title,
+        "content": data.content,
+        "content_type": data.content_type,
+        "updated_by": current_user["name"],
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.cms_content.insert_one(content)
+    await log_audit(current_user["id"], current_user["name"], "CREATE_CMS", "cms", content_id, f"Created CMS content: {data.key}")
+    
+    return CMSContentResponse(**content)
+
+@api_router.put("/cms/content/{key}", response_model=CMSContentResponse)
+async def update_cms_content(key: str, data: CMSContentUpdate, current_user: dict = Depends(require_role(ROLE_SUPERADMIN))):
+    """Update CMS content (superadmin only)"""
+    content = await db.cms_content.find_one({"key": key}, {"_id": 0})
+    if not content:
+        raise HTTPException(status_code=404, detail="Content not found")
+    
+    update_data = {"updated_by": current_user["name"], "updated_at": datetime.now(timezone.utc).isoformat()}
+    if data.title is not None:
+        update_data["title"] = data.title
+    if data.content is not None:
+        update_data["content"] = data.content
+    if data.content_type is not None:
+        update_data["content_type"] = data.content_type
+    
+    await db.cms_content.update_one({"key": key}, {"$set": update_data})
+    await log_audit(current_user["id"], current_user["name"], "UPDATE_CMS", "cms", content["id"], f"Updated CMS content: {key}")
+    
+    updated = await db.cms_content.find_one({"key": key}, {"_id": 0})
+    return CMSContentResponse(**updated)
+
+@api_router.delete("/cms/content/{key}")
+async def delete_cms_content(key: str, current_user: dict = Depends(require_role(ROLE_SUPERADMIN))):
+    """Delete CMS content (superadmin only)"""
+    content = await db.cms_content.find_one({"key": key}, {"_id": 0})
+    if not content:
+        raise HTTPException(status_code=404, detail="Content not found")
+    
+    await db.cms_content.delete_one({"key": key})
+    await log_audit(current_user["id"], current_user["name"], "DELETE_CMS", "cms", content["id"], f"Deleted CMS content: {key}")
+    
+    return {"message": "Content deleted successfully"}
 
 # ============ GROUP ENDPOINTS ============
 

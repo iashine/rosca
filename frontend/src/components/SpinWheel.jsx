@@ -17,12 +17,14 @@ const SpinWheel = ({
   const winSound = useRef(null);
   const membersRef = useRef(members);
 
-  // Keep membersRef in sync with members prop
+  // Keep membersRef in sync with members prop and force redraw when members change
   useEffect(() => {
     membersRef.current = members;
     // Hide winner overlay when members change (after a spin result is processed)
     setShowWinner(false);
     setWinner(null);
+    // Reset rotation to 0 when members change to ensure clean redraw
+    setRotation(0);
   }, [members]);
 
   // Auto-hide winner overlay after 3 seconds

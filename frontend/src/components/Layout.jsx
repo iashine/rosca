@@ -21,7 +21,8 @@ import {
   Sun,
   Moon,
   ChevronDown,
-  User
+  User,
+  ShieldCheck
 } from "lucide-react";
 
 const navItems = [
@@ -43,6 +44,17 @@ export const Layout = ({ children, title }) => {
     logout();
     navigate("/login");
   };
+
+  // Build nav items dynamically based on user role
+  const getNavItems = () => {
+    const items = [...navItems];
+    if (user?.role === "superadmin") {
+      items.push({ path: "/admin", label: "Admin", icon: ShieldCheck });
+    }
+    return items;
+  };
+
+  const currentNavItems = getNavItems();
 
   return (
     <div className="min-h-screen bg-background">

@@ -157,7 +157,7 @@ const ThemeProvider = ({ children }) => {
   });
 
   const [wheelTheme, setWheelTheme] = useState({
-    wheel_colors: ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD", "#D4A5A5"],
+    wheel_colors: ["#3b82f6", "#6366f1", "#8b5cf6", "#0ea5e9", "#14b8a6", "#64748b"],
     background_color: "#1a1f36",
     text_color: "#ffffff",
     accent_color: "#3b82f6"

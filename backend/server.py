@@ -133,7 +133,7 @@ class SpinResultResponse(BaseModel):
     created_at: str
 
 class ThemePreferences(BaseModel):
-    wheel_colors: List[str] = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEEAD", "#D4A5A5"]
+    wheel_colors: List[str] = ["#3b82f6", "#6366f1", "#8b5cf6", "#0ea5e9", "#14b8a6", "#64748b"]
     background_color: str = "#1a1f36"
     text_color: str = "#ffffff"
     accent_color: str = "#3b82f6"

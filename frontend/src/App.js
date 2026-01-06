@@ -174,14 +174,14 @@ const ThemeProvider = ({ children }) => {
 
   const toggleTheme = () => setIsDark(!isDark);
 
-  const loadWheelTheme = async () => {
+  const loadWheelTheme = useCallback(async () => {
     try {
       const res = await apiClient.get("/theme");
       setWheelTheme(res.data);
     } catch (error) {
       console.error("Failed to load theme");
     }
-  };
+  }, []);
 
   const saveWheelTheme = async (theme) => {
     try {

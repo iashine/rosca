@@ -35,6 +35,8 @@ const SpinSession = () => {
   const [loading, setLoading] = useState(true);
   const [isSpinning, setIsSpinning] = useState(false);
   const [sessionComplete, setSessionComplete] = useState(false);
+  const [currentWinner, setCurrentWinner] = useState(null);
+  const [countdown, setCountdown] = useState(0);
 
   const fetchGroupData = useCallback(async () => {
     try {
@@ -115,24 +117,43 @@ const SpinSession = () => {
 
       // Add to results list
       setSpinResults(prev => [...prev, res.data]);
-
-      // Remove winner from available members
-      const newAvailable = availableMembers.filter(m => m.id !== winner.id);
-      setAvailableMembers(newAvailable);
+      
+      // Show winner and start countdown
+      setCurrentWinner(winner);
+      setCountdown(10);
 
       toast.success(`${winner.name} wins!`, {
-        description: `Spin #${res.data.spin_number}`,
-        icon: <Trophy className="w-4 h-4 text-primary" />
+        description: `Spin #${res.data.spin_number} - Removing in 10 seconds...`,
+        icon: <Trophy className="w-4 h-4 text-primary" />,
+        duration: 10000
       });
 
-      // Check if only 1 member left - auto-select them as last winner
-      if (newAvailable.length === 1) {
-        await autoSelectLastMember(newAvailable[0]);
-      } else if (newAvailable.length === 0) {
-        // Session complete
-        setSessionComplete(true);
-        toast.success("🎉 ROSCA cycle complete! All members have been selected.");
-      }
+      // Countdown and remove after 10 seconds
+      const countdownInterval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // Remove winner after 10 seconds
+      setTimeout(() => {
+        setCurrentWinner(null);
+        const newAvailable = availableMembers.filter(m => m.id !== winner.id);
+        setAvailableMembers(newAvailable);
+
+        // Check if only 1 member left - auto-select them as last winner
+        if (newAvailable.length === 1) {
+          autoSelectLastMember(newAvailable[0]);
+        } else if (newAvailable.length === 0) {
+          // Session complete
+          setSessionComplete(true);
+          toast.success("🎉 ROSCA cycle complete! All members have been selected.");
+        }
+      }, 10000);
     } catch (error) {
       toast.error("Failed to record spin");
     }
@@ -335,6 +356,29 @@ const SpinSession = () => {
             <div className="floating-shapes rounded-3xl" />
             <Card className="border-border/50 overflow-hidden">
               <CardContent className="p-8 flex flex-col items-center">
+                {/* Winner Announcement Overlay */}
+                {currentWinner && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-xl">
+                    <div className="text-center p-8">
+                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center mx-auto mb-4">
+                        <Trophy className="w-10 h-10 text-primary" />
+                      </div>
+                      <p className="text-sm text-muted-foreground uppercase tracking-wider mb-2">Winner!</p>
+                      <h2 className="text-3xl font-bold text-primary mb-4">{currentWinner.name}</h2>
+                      <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                        <Clock className="w-4 h-4" />
+                        <span>Removing from wheel in <span className="font-bold text-foreground">{countdown}</span> seconds</span>
+                      </div>
+                      <div className="mt-4 w-48 mx-auto bg-muted rounded-full h-2 overflow-hidden">
+                        <div 
+                          className="h-full bg-primary transition-all duration-1000 ease-linear"
+                          style={{ width: `${(countdown / 10) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <SpinWheel
                   key={availableMembers.map(m => m.id).join(',')}
                   members={availableMembers}
@@ -351,13 +395,18 @@ const SpinSession = () => {
                       const wheel = document.querySelector('[data-testid="spin-wheel"]');
                       if (wheel) wheel.click();
                     }}
-                    disabled={isSpinning || availableMembers.length === 0}
+                    disabled={isSpinning || availableMembers.length === 0 || currentWinner !== null}
                     data-testid="spin-btn"
                   >
                     {isSpinning ? (
                       <>
                         <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                         Spinning...
+                      </>
+                    ) : currentWinner ? (
+                      <>
+                        <Clock className="w-5 h-5 mr-2" />
+                        Wait {countdown}s...
                       </>
                     ) : availableMembers.length === 0 ? (
                       "Cycle Complete!"
@@ -376,8 +425,13 @@ const SpinSession = () => {
                 {/* Show members on wheel */}
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
                   {availableMembers.map((member) => (
-                    <Badge key={member.id} variant="outline" className="text-xs">
+                    <Badge 
+                      key={member.id} 
+                      variant={currentWinner?.id === member.id ? "default" : "outline"} 
+                      className={`text-xs ${currentWinner?.id === member.id ? "ring-2 ring-primary ring-offset-2" : ""}`}
+                    >
                       {member.name}
+                      {currentWinner?.id === member.id && <Trophy className="w-3 h-3 ml-1" />}
                     </Badge>
                   ))}
                 </div>

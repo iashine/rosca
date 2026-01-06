@@ -41,18 +41,18 @@ const SpinSession = () => {
       setGroup(groupRes.data);
       setMembers(membersRes.data);
       setAvailableMembers(membersRes.data);
-      await loadWheelTheme();
     } catch (error) {
       toast.error("Failed to load group");
       navigate("/groups");
     } finally {
       setLoading(false);
     }
-  }, [groupId, navigate, loadWheelTheme]);
+  }, [groupId, navigate]);
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    loadWheelTheme();
+  }, [fetchData, loadWheelTheme]);
 
   const startSession = async () => {
     try {

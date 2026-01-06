@@ -60,15 +60,15 @@
 /* Winner display styles */
 .winner-display {
   background: linear-gradient(135deg, 
-    rgba(234, 179, 8, 0.1) 0%, 
-    rgba(234, 179, 8, 0.05) 100%);
-  border: 2px solid rgba(234, 179, 8, 0.3);
+    rgba(59, 130, 246, 0.1) 0%, 
+    rgba(59, 130, 246, 0.05) 100%);
+  border: 2px solid rgba(59, 130, 246, 0.3);
 }
 
 .dark .winner-display {
   background: linear-gradient(135deg, 
-    rgba(234, 179, 8, 0.15) 0%, 
-    rgba(234, 179, 8, 0.05) 100%);
+    rgba(59, 130, 246, 0.15) 0%, 
+    rgba(59, 130, 246, 0.05) 100%);
 }
 
 /* Result list item animation */

@@ -567,12 +567,16 @@ const MemberPortal = () => {
 
                                 {/* Replay Button */}
                                 <td className="py-3 px-4 text-center">
-                                  {spin.session_id && (
-                                    <Link to={`/member-session-replay/${spin.session_id}`}>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-8 w-8 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                                  {spin.members_at_spin && spin.members_at_spin.length > 0 && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => playReplay(spin)}
+                                      className="h-8 w-8 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                                    >
+                                      <Play className="w-4 h-4" />
+                                    </Button>
+                                  )}
                                       >
                                         <Play className="w-4 h-4" />
                                       </Button>

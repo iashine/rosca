@@ -1529,6 +1529,75 @@ async def member_heartbeat(request: Request):
     
     return {"online_members": online_members}
 
+# ============ MEMBER SESSION REPLAY ENDPOINTS ============
+
+@api_router.get("/member-portal/session/{session_id}")
+async def get_member_session(session_id: str, request: Request):
+    """Get session data for member portal replay"""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization")
+    
+    token = auth_header[7:]
+    member_info = await get_member_from_token(token)
+    if not member_info:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    session = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Verify session belongs to member's group
+    if session["group_id"] != member_info["group_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    group = await db.groups.find_one({"id": session["group_id"]}, {"_id": 0})
+    spin_count = await db.spin_results.count_documents({"session_id": session_id})
+    
+    return {
+        "id": session["id"],
+        "group_id": session["group_id"],
+        "group_name": group["name"] if group else "",
+        "status": session["status"],
+        "started_at": session["started_at"],
+        "completed_at": session.get("completed_at"),
+        "spin_count": spin_count
+    }
+
+@api_router.get("/member-portal/session/{session_id}/spins")
+async def get_member_session_spins(session_id: str, request: Request):
+    """Get spin results for member portal replay"""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization")
+    
+    token = auth_header[7:]
+    member_info = await get_member_from_token(token)
+    if not member_info:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    session = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Verify session belongs to member's group
+    if session["group_id"] != member_info["group_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    spins = await db.spin_results.find({"session_id": session_id}, {"_id": 0}).sort("spin_number", 1).to_list(1000)
+    
+    return [{
+        "id": s["id"],
+        "session_id": s["session_id"],
+        "winner_member_id": s["winner_member_id"],
+        "winner_name": s["winner_name"],
+        "members_at_spin": s.get("members_at_spin", []),
+        "spin_angle": s["spin_angle"],
+        "spin_number": s["spin_number"],
+        "is_auto_selected": s.get("is_auto_selected", False),
+        "created_at": s["created_at"]
+    } for s in spins]
+
 # ============ CHAT ENDPOINTS ============
 
 @api_router.get("/member-portal/chat")

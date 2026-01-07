@@ -627,6 +627,9 @@ class ROSCAAPITester:
             if self.test_add_member():
                 self.test_get_members()
                 
+                # Add second member for session testing
+                self.test_add_second_member()
+                
                 # Test session and spin functionality
                 if self.test_create_session():
                     self.test_get_sessions()

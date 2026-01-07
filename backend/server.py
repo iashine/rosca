@@ -1683,6 +1683,75 @@ async def root():
 # Include the router in the main app
 app.include_router(api_router)
 
+# Geoblocking Middleware
+class GeoblockingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Skip geoblocking check for API endpoints (they handle their own auth)
+        # Only block frontend requests
+        path = request.url.path
+        
+        # Always allow API calls and static files
+        if path.startswith("/api/") or path.startswith("/static/"):
+            return await call_next(request)
+        
+        # Get client IP
+        client_ip = request.headers.get("X-Forwarded-For", request.headers.get("X-Real-IP", ""))
+        if not client_ip and request.client:
+            client_ip = request.client.host
+        if client_ip and "," in client_ip:
+            client_ip = client_ip.split(",")[0].strip()
+        
+        if not client_ip:
+            return await call_next(request)
+        
+        try:
+            # Get settings
+            settings = await db.geoblocking_settings.find_one({}, {"_id": 0})
+            
+            if not settings or not settings.get("enabled", False):
+                # Geoblocking disabled, just log the visit
+                geo_data = await get_ip_geolocation(client_ip)
+                user_agent = request.headers.get("User-Agent", "")
+                await log_ip_visit(client_ip, user_agent, path, geo_data, False, False)
+                return await call_next(request)
+            
+            # Check whitelist first
+            whitelisted = await db.ip_whitelist.find_one({"ip_address": client_ip})
+            if whitelisted:
+                geo_data = await get_ip_geolocation(client_ip)
+                user_agent = request.headers.get("User-Agent", "")
+                await log_ip_visit(client_ip, user_agent, path, geo_data, False, True)
+                return await call_next(request)
+            
+            # Get geolocation
+            geo_data = await get_ip_geolocation(client_ip)
+            country_code = geo_data.get("country_code", "UNKNOWN")
+            user_agent = request.headers.get("User-Agent", "")
+            
+            allowed_countries = settings.get("allowed_countries", ["US"])
+            is_blocked = country_code not in allowed_countries and country_code != "UNKNOWN"
+            
+            # Log the visit
+            await log_ip_visit(client_ip, user_agent, path, geo_data, is_blocked, False)
+            
+            if is_blocked:
+                # Return blocked response - redirect to restricted page
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "blocked": True,
+                        "message": settings.get("block_message", "Access restricted"),
+                        "country": country_code
+                    }
+                )
+        except Exception as e:
+            logger.error(f"Geoblocking middleware error: {e}")
+        
+        return await call_next(request)
+
+# Add geoblocking middleware (before CORS)
+app.add_middleware(GeoblockingMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,

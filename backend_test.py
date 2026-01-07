@@ -398,7 +398,29 @@ class ROSCAAPITester:
             return True
         return False
 
-    def test_get_members_with_access(self):
+    def test_add_second_member(self):
+        """Test adding second member to group"""
+        if not hasattr(self, 'group_id'):
+            self.log_test("Add Second Member", False, "No group_id available")
+            return False
+            
+        timestamp = datetime.now().strftime('%H%M%S')
+        success, response = self.run_test(
+            "Add Second Member",
+            "POST",
+            f"groups/{self.group_id}/members",
+            200,
+            data={
+                "name": f"Second Member {timestamp}",
+                "email": f"member2_{timestamp}@example.com",
+                "phone": "+1234567891"
+            }
+        )
+        
+        if success and 'id' in response:
+            self.second_member_id = response['id']
+            return True
+        return False
         """Test get members with access info (passcodes)"""
         if not hasattr(self, 'group_id'):
             self.log_test("Get Members with Access", False, "No group_id available")

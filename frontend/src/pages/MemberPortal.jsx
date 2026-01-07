@@ -777,10 +777,15 @@ const MemberPortal = () => {
           </DialogHeader>
 
           <div className="flex flex-col items-center py-4">
-            {/* Pointer */}
-            <div className="mb-2">
-              <svg width="30" height="30" viewBox="0 0 40 40">
-                <polygon points="20,35 10,10 30,10" fill="#3b82f6" stroke="#1e293b" strokeWidth="2"/>
+            {/* Arrow pointer - matching admin */}
+            <div className="mb-1">
+              <svg width="30" height="30" viewBox="0 0 30 30">
+                <polygon 
+                  points="15,25 7,7 23,7" 
+                  fill="#3b82f6"
+                  stroke="#1e293b"
+                  strokeWidth="2"
+                />
               </svg>
             </div>
 

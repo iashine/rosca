@@ -589,7 +589,10 @@ const GroupDetail = () => {
                             variant="ghost"
                             size="icon"
                             className="ml-1 h-6 w-6"
-                            onClick={() => copyToClipboard(member.passcode, "Passcode")}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyToClipboard(member.passcode, "Passcode");
+                            }}
                             title="Copy passcode"
                           >
                             <Copy className="w-3 h-3" />

@@ -229,6 +229,8 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/restricted" element={<RestrictedAccess />} />
+              <Route path="/group-access/:accessCode" element={<GroupAccess />} />
+              <Route path="/member-portal/:groupId" element={<MemberPortal />} />
               
               {/* Protected routes */}
               <Route path="/" element={

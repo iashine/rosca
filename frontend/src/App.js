@@ -232,6 +232,7 @@ function App() {
               <Route path="/restricted" element={<RestrictedAccess />} />
               <Route path="/group-access/:accessCode" element={<GroupAccess />} />
               <Route path="/member-portal/:groupId" element={<MemberPortal />} />
+              <Route path="/member-session-replay/:sessionId" element={<MemberSessionReplay />} />
               
               {/* Protected routes */}
               <Route path="/" element={

@@ -8,6 +8,8 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Skeleton } from "../components/ui/skeleton";
+import { Switch } from "../components/ui/switch";
+import { Badge } from "../components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -50,7 +52,13 @@ import {
   ShieldAlert,
   Loader2,
   Save,
-  RefreshCw
+  RefreshCw,
+  Globe,
+  Ban,
+  CheckCircle,
+  MapPin,
+  Clock,
+  Eye
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -66,16 +74,30 @@ const AdminDashboard = () => {
   const [cmsContent, setCmsContent] = useState([]);
   const [loadingCms, setLoadingCms] = useState(true);
   
+  // Geoblocking state
+  const [geoSettings, setGeoSettings] = useState({
+    enabled: false,
+    allowed_countries: ["US"],
+    block_message: "Access to this site is restricted in your region."
+  });
+  const [ipLogs, setIpLogs] = useState([]);
+  const [ipWhitelist, setIpWhitelist] = useState([]);
+  const [ipStats, setIpStats] = useState({});
+  const [loadingGeo, setLoadingGeo] = useState(true);
+  const [countryFilter, setCountryFilter] = useState("");
+  const [blockedOnlyFilter, setBlockedOnlyFilter] = useState(false);
+  
   // Dialog states
   const [editingUser, setEditingUser] = useState(null);
   const [editingContent, setEditingContent] = useState(null);
   const [newContent, setNewContent] = useState({ key: "", title: "", content: "", content_type: "text" });
   const [showNewContentDialog, setShowNewContentDialog] = useState(false);
+  const [showWhitelistDialog, setShowWhitelistDialog] = useState(false);
+  const [newWhitelistIp, setNewWhitelistIp] = useState({ ip_address: "", description: "" });
   
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // Check if user is superadmin
     if (user?.role !== "superadmin") {
       toast.error("Access denied. Superadmin privileges required.");
       navigate("/");
@@ -84,6 +106,7 @@ const AdminDashboard = () => {
     
     fetchUsers();
     fetchCmsContent();
+    fetchGeoData();
   }, [user, navigate]);
 
   const fetchUsers = async () => {
@@ -112,6 +135,39 @@ const AdminDashboard = () => {
       toast.error("Failed to fetch CMS content");
     } finally {
       setLoadingCms(false);
+    }
+  };
+
+  const fetchGeoData = async () => {
+    setLoadingGeo(true);
+    try {
+      const [settingsRes, logsRes, whitelistRes, statsRes] = await Promise.all([
+        apiClient.get("/admin/geoblocking"),
+        apiClient.get("/admin/ip-logs"),
+        apiClient.get("/admin/ip-whitelist"),
+        apiClient.get("/admin/ip-logs/stats")
+      ]);
+      setGeoSettings(settingsRes.data);
+      setIpLogs(logsRes.data);
+      setIpWhitelist(whitelistRes.data);
+      setIpStats(statsRes.data);
+    } catch (error) {
+      toast.error("Failed to fetch geoblocking data");
+    } finally {
+      setLoadingGeo(false);
+    }
+  };
+
+  const fetchIpLogs = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (countryFilter) params.append("country_filter", countryFilter);
+      if (blockedOnlyFilter) params.append("blocked_only", "true");
+      
+      const res = await apiClient.get(`/admin/ip-logs?${params.toString()}`);
+      setIpLogs(res.data);
+    } catch (error) {
+      toast.error("Failed to fetch IP logs");
     }
   };
 
@@ -193,6 +249,76 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleToggleGeoblocking = async (enabled) => {
+    setSaving(true);
+    try {
+      await apiClient.put("/admin/geoblocking", { enabled });
+      setGeoSettings(prev => ({ ...prev, enabled }));
+      toast.success(`Geoblocking ${enabled ? "enabled" : "disabled"}`);
+    } catch (error) {
+      toast.error("Failed to update geoblocking settings");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateGeoSettings = async () => {
+    setSaving(true);
+    try {
+      await apiClient.put("/admin/geoblocking", geoSettings);
+      toast.success("Geoblocking settings updated");
+    } catch (error) {
+      toast.error("Failed to update settings");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddToWhitelist = async () => {
+    if (!newWhitelistIp.ip_address) {
+      toast.error("Please enter an IP address");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await apiClient.post("/admin/ip-whitelist", newWhitelistIp);
+      toast.success("IP added to whitelist");
+      setShowWhitelistDialog(false);
+      setNewWhitelistIp({ ip_address: "", description: "" });
+      fetchGeoData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Failed to add IP");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveFromWhitelist = async (ip) => {
+    if (!window.confirm(`Remove ${ip} from whitelist?`)) return;
+    
+    try {
+      await apiClient.delete(`/admin/ip-whitelist/${encodeURIComponent(ip)}`);
+      toast.success("IP removed from whitelist");
+      fetchGeoData();
+    } catch (error) {
+      toast.error("Failed to remove IP");
+    }
+  };
+
+  const handleQuickWhitelist = async (ip) => {
+    setSaving(true);
+    try {
+      await apiClient.post("/admin/ip-whitelist", { ip_address: ip, description: "Quick whitelist from logs" });
+      toast.success("IP whitelisted");
+      fetchGeoData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Failed to whitelist IP");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const getRoleIcon = (role) => {
     switch (role) {
       case "superadmin":
@@ -226,16 +352,19 @@ const AdminDashboard = () => {
           <ShieldCheck className="w-8 h-8 text-red-500" />
           Admin Dashboard
         </h1>
-        <p className="text-muted-foreground mt-1">Manage users and CMS content</p>
+        <p className="text-muted-foreground mt-1">Manage users, CMS content, and geoblocking</p>
       </div>
 
       <Tabs defaultValue="users" className="space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-lg grid-cols-3">
           <TabsTrigger value="users" className="flex items-center gap-2" data-testid="users-tab">
             <Users className="w-4 h-4" /> Users
           </TabsTrigger>
           <TabsTrigger value="cms" className="flex items-center gap-2" data-testid="cms-tab">
             <FileText className="w-4 h-4" /> CMS
+          </TabsTrigger>
+          <TabsTrigger value="geoblocking" className="flex items-center gap-2" data-testid="geoblocking-tab">
+            <Globe className="w-4 h-4" /> Geoblocking
           </TabsTrigger>
         </TabsList>
 
@@ -569,6 +698,328 @@ const AdminDashboard = () => {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Geoblocking Tab */}
+        <TabsContent value="geoblocking">
+          <div className="space-y-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card className="border-border/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <Globe className="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{ipStats.total_unique_ips || 0}</p>
+                      <p className="text-sm text-muted-foreground">Unique IPs</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
+                      <Ban className="w-5 h-5 text-red-500" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{ipStats.blocked_ips || 0}</p>
+                      <p className="text-sm text-muted-foreground">Blocked IPs</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{ipStats.whitelisted_ips || 0}</p>
+                      <p className="text-sm text-muted-foreground">Whitelisted</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${geoSettings.enabled ? "bg-green-500/10" : "bg-gray-500/10"}`}>
+                      <Shield className={`w-5 h-5 ${geoSettings.enabled ? "text-green-500" : "text-gray-500"}`} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{geoSettings.enabled ? "Active" : "Off"}</p>
+                      <p className="text-sm text-muted-foreground">Geoblocking</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Settings Card */}
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  Geoblocking Settings
+                </CardTitle>
+                <CardDescription>Control access based on visitor location</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                  <div>
+                    <p className="font-medium">Enable Geoblocking</p>
+                    <p className="text-sm text-muted-foreground">Restrict access to allowed countries only</p>
+                  </div>
+                  <Switch 
+                    checked={geoSettings.enabled} 
+                    onCheckedChange={handleToggleGeoblocking}
+                    data-testid="geoblocking-toggle"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Allowed Countries (comma-separated country codes)</Label>
+                  <Input 
+                    value={geoSettings.allowed_countries?.join(", ") || "US"}
+                    onChange={(e) => setGeoSettings({
+                      ...geoSettings, 
+                      allowed_countries: e.target.value.split(",").map(c => c.trim().toUpperCase())
+                    })}
+                    placeholder="US, CA, GB"
+                    data-testid="allowed-countries-input"
+                  />
+                  <p className="text-xs text-muted-foreground">Use ISO 3166-1 alpha-2 codes (e.g., US, CA, GB, DE)</p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Block Message</Label>
+                  <Textarea 
+                    value={geoSettings.block_message || ""}
+                    onChange={(e) => setGeoSettings({...geoSettings, block_message: e.target.value})}
+                    placeholder="Message shown to blocked visitors"
+                    rows={3}
+                  />
+                </div>
+                
+                <Button onClick={handleUpdateGeoSettings} disabled={saving}>
+                  {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                  <Save className="w-4 h-4 mr-2" /> Save Settings
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Whitelist Card */}
+            <Card className="border-border/50">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                    IP Whitelist
+                  </CardTitle>
+                  <CardDescription>IPs that bypass geoblocking restrictions</CardDescription>
+                </div>
+                <Dialog open={showWhitelistDialog} onOpenChange={setShowWhitelistDialog}>
+                  <DialogTrigger asChild>
+                    <Button data-testid="add-whitelist-btn">
+                      <Plus className="w-4 h-4 mr-2" /> Add IP
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add IP to Whitelist</DialogTitle>
+                      <DialogDescription>
+                        This IP will bypass all geoblocking restrictions
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>IP Address</Label>
+                        <Input 
+                          value={newWhitelistIp.ip_address}
+                          onChange={(e) => setNewWhitelistIp({...newWhitelistIp, ip_address: e.target.value})}
+                          placeholder="e.g., 192.168.1.1"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Description (optional)</Label>
+                        <Input 
+                          value={newWhitelistIp.description}
+                          onChange={(e) => setNewWhitelistIp({...newWhitelistIp, description: e.target.value})}
+                          placeholder="e.g., Office IP"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowWhitelistDialog(false)}>Cancel</Button>
+                      <Button onClick={handleAddToWhitelist} disabled={saving}>
+                        {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                        Add to Whitelist
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent>
+                {ipWhitelist.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CheckCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No IPs whitelisted</p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>IP Address</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Added By</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {ipWhitelist.map((w) => (
+                          <TableRow key={w.id}>
+                            <TableCell className="font-mono">{w.ip_address}</TableCell>
+                            <TableCell>{w.description || "-"}</TableCell>
+                            <TableCell>{w.added_by}</TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {format(new Date(w.created_at), "MMM d, yyyy")}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => handleRemoveFromWhitelist(w.ip_address)}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* IP Logs Card */}
+            <Card className="border-border/50">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Eye className="w-5 h-5" />
+                    IP Visit Logs
+                  </CardTitle>
+                  <CardDescription>All visitor IPs with location data</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Select value={countryFilter} onValueChange={(v) => { setCountryFilter(v); }}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue placeholder="Country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All Countries</SelectItem>
+                      {ipStats.top_countries?.map(c => (
+                        <SelectItem key={c.country} value={c.country || "UNKNOWN"}>
+                          {c.country || "Unknown"} ({c.count})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" onClick={fetchIpLogs}>
+                    <RefreshCw className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loadingGeo ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+                  </div>
+                ) : ipLogs.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Globe className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No IP visits logged yet</p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>IP Address</TableHead>
+                          <TableHead>Location</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Visits</TableHead>
+                          <TableHead>Last Visit</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {ipLogs.map((log) => (
+                          <TableRow key={log.id}>
+                            <TableCell className="font-mono text-sm">{log.ip_address}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <MapPin className="w-4 h-4 text-muted-foreground" />
+                                <div>
+                                  <p className="font-medium">{log.country_name || "Unknown"}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {log.city}{log.city && log.region ? ", " : ""}{log.region}
+                                  </p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {log.is_whitelisted ? (
+                                <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
+                                  Whitelisted
+                                </Badge>
+                              ) : log.is_blocked ? (
+                                <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20">
+                                  Blocked
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                  Allowed
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>{log.visit_count}</TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              <div className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {format(new Date(log.last_visit), "MMM d, HH:mm")}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {!log.is_whitelisted && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleQuickWhitelist(log.ip_address)}
+                                  disabled={saving}
+                                  title="Add to whitelist"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </Layout>

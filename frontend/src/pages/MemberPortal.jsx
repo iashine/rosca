@@ -1,11 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Badge } from "../components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
+import confetti from "canvas-confetti";
 import { toast } from "sonner";
 import { 
   Loader2, 
@@ -20,12 +27,14 @@ import {
   Play,
   Bell,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  X
 } from "lucide-react";
 import { format } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const DEFAULT_WHEEL_COLORS = ["#3b82f6", "#6366f1", "#8b5cf6", "#0ea5e9", "#14b8a6", "#64748b"];
 
 // Format date in CST timezone
 const formatCST = (dateString, formatStr) => {
@@ -48,6 +57,16 @@ const MemberPortal = () => {
   const [lastSpinCount, setLastSpinCount] = useState(0);
   const [newSpinAlert, setNewSpinAlert] = useState(false);
   const chatEndRef = useRef(null);
+  
+  // Replay modal state
+  const [replayingSpin, setReplayingSpin] = useState(null);
+  const [isWheelSpinning, setIsWheelSpinning] = useState(false);
+  const [showWinner, setShowWinner] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [canClose, setCanClose] = useState(true);
+  const canvasRef = useRef(null);
+  const animationRef = useRef(null);
+  const countdownRef = useRef(null);
   const pollIntervalRef = useRef(null);
 
   const memberToken = localStorage.getItem("memberAccessToken");

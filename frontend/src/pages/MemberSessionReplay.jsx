@@ -195,30 +195,35 @@ const MemberSessionReplay = () => {
     setCurrentWinner(null);
 
     const targetAngle = spin.spin_angle;
-    const startRotation = wheelRotation;
+    const startRotation = 0; // Always start from 0 for consistent replay
     const duration = 4000;
     const startTime = Date.now();
 
+    // Calculate total rotation to end exactly at targetAngle
     const extraRotations = 3 * 360;
-    const totalRotation = startRotation + extraRotations + (targetAngle - (startRotation % 360) + 360) % 360;
+    const normalizedTarget = ((targetAngle % 360) + 360) % 360;
+    const totalRotation = extraRotations + normalizedTarget;
 
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
       
       const easeOut = 1 - Math.pow(1 - progress, 3);
-      const currentRotation = startRotation + (totalRotation - startRotation) * easeOut;
+      const currentRotation = totalRotation * easeOut;
       setWheelRotation(currentRotation);
       drawWheel(members, currentRotation);
 
       if (progress < 1) {
         animationRef.current = requestAnimationFrame(animate);
       } else {
+        // Ensure we end exactly at the target angle
+        setWheelRotation(normalizedTarget);
+        drawWheel(members, normalizedTarget);
         setIsWheelSpinning(false);
         setCurrentWinner(spin);
         
         const winnerIndex = members.findIndex(m => m.id === spin.winner_member_id);
-        drawWheel(members, currentRotation, winnerIndex);
+        drawWheel(members, normalizedTarget, winnerIndex);
         
         confetti({
           particleCount: 80,

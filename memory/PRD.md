@@ -10,13 +10,14 @@ Build a ROSCA (Rotating Savings and Credit Association) Application with:
 - Theme customization (wheel colors)
 - Audit logging
 - Dashboard with statistics
-- **Landing page and secure moderator sign-up flow**
-- **RBAC for superadmin and moderators**
-- **Password reset and forgot password features**
-- **CMS section for content management**
+- Landing page and secure moderator sign-up flow
+- RBAC for superadmin and moderators
+- Password reset and forgot password features
+- CMS section for content management
+- **Geoblocking with IP whitelisting**
 
 ## User Personas
-1. **Superadmin** - Full system access, user management, CMS control, can promote moderators
+1. **Superadmin** - Full system access, user management, CMS control, geoblocking management
 2. **Moderator** - Creates and manages ROSCA groups, adds/removes members, conducts spin sessions
 3. **Group Member** - Participates in savings circles (future: can view their status)
 
@@ -31,13 +32,15 @@ Build a ROSCA (Rotating Savings and Credit Association) Application with:
 - Wheel theme customization
 - Email verification for registration (AgentMail)
 - Password reset via email
+- Geoblocking with country restrictions and IP whitelisting
 
 ## Architecture
 - **Backend**: FastAPI (Python) with MongoDB
 - **Frontend**: React with Tailwind CSS, shadcn/ui components
-- **Database**: MongoDB (collections: users, groups, members, sessions, spin_results, audit_logs, theme_preferences, pending_registrations, password_resets, math_challenges, cms_content)
+- **Database**: MongoDB (collections: users, groups, members, sessions, spin_results, audit_logs, theme_preferences, pending_registrations, password_resets, math_challenges, cms_content, geoblocking_settings, ip_logs, ip_whitelist)
 - **Authentication**: JWT tokens with bcrypt password hashing
 - **Email Service**: AgentMail API for transactional emails
+- **Geolocation**: ip-api.com (free service) for IP country detection
 
 ## What's Been Implemented
 
@@ -56,28 +59,18 @@ Build a ROSCA (Rotating Savings and Credit Association) Application with:
 - Winner display delay (10 seconds)
 
 ### January 6, 2026 - Landing Page & Security Update
-- **Landing Page** (`/landing`) - Public-facing page with:
-  - Hero section with animated wheel preview
-  - 6 feature cards
-  - 4-step "How It Works" section
-  - Benefits section
-  - CTA and footer
-- **Secure Registration Flow** - 3-step process:
-  - Step 1: User details (name, email, password)
-  - Step 2: Math captcha verification
-  - Step 3: Email verification code (via AgentMail)
-- **RBAC System**:
-  - Superadmin role with full access
-  - Moderator role for group management
-  - Member role (future)
-- **Password Reset Flow**:
-  - Forgot password page
-  - Email reset code
-  - New password entry
-- **Admin Dashboard** (`/admin`) - Superadmin only:
-  - User management (list, update roles, delete)
-  - CMS content management (CRUD)
-- **Navigation Updates**: Admin link visible only for superadmin
+- Public Landing Page (`/landing`) with CMS-driven content
+- 3-Step Secure Registration Flow (details → math captcha → email verification)
+- RBAC System (superadmin, moderator, member roles)
+- Password Reset/Forgot Password flow
+- Admin Dashboard (`/admin`) with User Management and CMS
+
+### January 7, 2026 - Geoblocking Feature
+- **Geoblocking Settings** - Enable/disable, configure allowed countries (default: US)
+- **IP Tracking** - All visitor IPs logged with country, city, region, visit count
+- **IP Whitelisting** - Allow specific IPs to bypass geoblocking
+- **Restricted Access Page** (`/restricted`) - Shown to blocked visitors
+- **Admin Dashboard Geoblocking Tab** - Full management UI with stats
 
 ## API Endpoints
 
@@ -104,7 +97,17 @@ Build a ROSCA (Rotating Savings and Credit Association) Application with:
 - PUT /api/cms/content/{key} - Update content (superadmin)
 - DELETE /api/cms/content/{key} - Delete content (superadmin)
 
-### Groups & Sessions (unchanged)
+### Geoblocking (NEW)
+- GET /api/geoblocking/check - Check if current IP is blocked (public)
+- GET /api/admin/geoblocking - Get geoblocking settings (superadmin)
+- PUT /api/admin/geoblocking - Update geoblocking settings (superadmin)
+- GET /api/admin/ip-logs - Get visitor IP logs (superadmin)
+- GET /api/admin/ip-logs/stats - Get IP statistics (superadmin)
+- GET /api/admin/ip-whitelist - Get whitelisted IPs (superadmin)
+- POST /api/admin/ip-whitelist - Add IP to whitelist (superadmin)
+- DELETE /api/admin/ip-whitelist/{ip} - Remove IP from whitelist (superadmin)
+
+### Groups & Sessions
 - GET/POST /api/groups
 - GET/PUT/DELETE /api/groups/{id}
 - GET/POST/DELETE /api/groups/{id}/members
@@ -118,7 +121,6 @@ Build a ROSCA (Rotating Savings and Credit Association) Application with:
 
 ## Test Accounts
 - **Superadmin**: admin@rosca.com / admin123
-- **Test User**: test@example.com / test123456
 
 ## Prioritized Backlog
 
@@ -133,8 +135,9 @@ Build a ROSCA (Rotating Savings and Credit Association) Application with:
 - [x] RBAC (superadmin/moderator)
 - [x] Password reset/forgot password
 - [x] Admin dashboard with CMS
+- [x] Geoblocking with IP whitelisting
 
-### P1 (Important) - In Progress
+### P1 (Important) - Pending
 - [ ] Sound effects for spinning wheel
 - [x] Theme customization
 - [x] Audit logs
@@ -150,12 +153,7 @@ Build a ROSCA (Rotating Savings and Credit Association) Application with:
 
 ## Third-Party Integrations
 - **AgentMail** - Email verification and password reset
-  - API Key: Configured in backend/.env
-  - Inbox: noreply@rosca-hcc.net
-
-## Known Issues
-- ESLint warnings for useEffect dependencies (minor, not affecting functionality)
-- AgentMail may not send emails in some environments - codes are logged to backend
+- **ip-api.com** - IP geolocation for geoblocking
 
 ## Files Structure
 ```
@@ -164,18 +162,20 @@ Build a ROSCA (Rotating Savings and Credit Association) Application with:
 │   ├── server.py          # All API endpoints
 │   ├── .env               # Environment variables
 │   └── tests/
-│       └── test_rosca_new_features.py
+│       ├── test_rosca_new_features.py
+│       └── test_geoblocking.py
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── Layout.jsx       # Navigation with RBAC
-│   │   │   └── SpinWheel.jsx    # Canvas wheel component
+│   │   │   ├── Layout.jsx
+│   │   │   └── SpinWheel.jsx
 │   │   ├── pages/
-│   │   │   ├── Landing.jsx      # Public landing page
-│   │   │   ├── Login.jsx        # Login with forgot password link
-│   │   │   ├── Register.jsx     # 3-step registration
+│   │   │   ├── Landing.jsx      # CMS-driven
+│   │   │   ├── Login.jsx
+│   │   │   ├── Register.jsx     # 3-step
 │   │   │   ├── ForgotPassword.jsx
-│   │   │   ├── AdminDashboard.jsx  # User & CMS management
+│   │   │   ├── AdminDashboard.jsx  # Users, CMS, Geoblocking tabs
+│   │   │   ├── RestrictedAccess.jsx  # For blocked visitors
 │   │   │   ├── Dashboard.jsx
 │   │   │   ├── Groups.jsx
 │   │   │   ├── GroupDetail.jsx
@@ -184,12 +184,13 @@ Build a ROSCA (Rotating Savings and Credit Association) Application with:
 │   │   │   ├── SessionReplay.jsx
 │   │   │   ├── ThemeSettings.jsx
 │   │   │   └── AuditLogs.jsx
-│   │   └── App.js          # Routes and context
+│   │   └── App.js
 │   └── .env
 ├── memory/
 │   └── PRD.md
 └── test_reports/
-    └── iteration_2.json
+    ├── iteration_2.json
+    └── iteration_3.json
 ```
 
 ## Next Action Items

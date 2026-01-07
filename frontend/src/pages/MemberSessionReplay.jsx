@@ -89,7 +89,7 @@ const MemberSessionReplay = () => {
     fetchSession();
   }, [sessionId, memberToken, navigate]);
 
-  // Draw the wheel - matching admin version
+  // Draw the wheel - matching admin version exactly
   const drawWheel = useCallback((members, rotation, highlightIndex = -1) => {
     const canvas = canvasRef.current;
     if (!canvas || members.length === 0) return;
@@ -161,7 +161,7 @@ const MemberSessionReplay = () => {
     }
   }, [currentMembers, drawWheel]);
 
-  // Animate wheel to a specific spin result - matching admin version
+  // Animate wheel to a specific spin result - matching admin version exactly
   const animateToSpin = useCallback((spinIndex) => {
     if (spinIndex < 0 || spinIndex >= spinResults.length) return;
 
@@ -373,161 +373,194 @@ const MemberSessionReplay = () => {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Wheel */}
-          <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Wheel Replay Section */}
+          <div className="lg:col-span-8">
             <Card className="bg-slate-800/50 border-slate-700/50">
               <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-yellow-500" />
-                  Spin Replay
-                  {isWheelSpinning && (
-                    <Badge className="bg-blue-500/20 text-blue-400 ml-2">Spinning...</Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center">
-                {/* Wheel Canvas */}
-                <div className="relative mb-6">
-                  <canvas
-                    ref={canvasRef}
-                    width={400}
-                    height={400}
-                    className="rounded-full shadow-2xl"
-                  />
-                  
-                  {/* Pointer */}
-                  <div className="absolute top-1/2 -right-2 transform -translate-y-1/2">
-                    <div className="w-0 h-0 border-t-[15px] border-t-transparent border-b-[15px] border-b-transparent border-r-[25px] border-r-red-500" />
-                  </div>
-
-                  {/* Winner overlay */}
-                  {currentWinner && !isWheelSpinning && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="bg-slate-900/95 rounded-xl p-6 text-center shadow-2xl border border-yellow-500/30 animate-bounce">
-                        <Trophy className="w-10 h-10 text-yellow-500 mx-auto mb-2" />
-                        <p className="text-xl font-bold text-white">{currentWinner.winner_name}</p>
-                        <p className="text-sm text-slate-400 mt-1">Spin #{currentWinner.spin_number}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Controls */}
-                <div className="flex gap-3 mb-4">
-                  {!isReplaying ? (
+                <CardTitle className="flex items-center justify-between text-white">
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-yellow-500" />
+                    Cycle Replay
+                  </span>
+                  <div className="flex items-center gap-2">
                     <Button
-                      onClick={startReplay}
+                      variant="outline"
+                      size="sm"
+                      onClick={resetReplay}
+                      disabled={isWheelSpinning}
+                      className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      onClick={isReplaying ? pauseReplay : startReplay}
                       disabled={spinResults.length === 0 || isWheelSpinning}
                       className="bg-blue-600 hover:bg-blue-700"
                     >
-                      <Play className="w-4 h-4 mr-2" />
-                      {replayIndex >= 0 ? "Resume" : "Start Replay"}
+                      {isReplaying ? (
+                        <>
+                          <Pause className="w-4 h-4 mr-2" /> Pause
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 mr-2" /> {replayIndex >= 0 ? "Resume" : "Start Replay"}
+                        </>
+                      )}
                     </Button>
-                  ) : (
-                    <Button onClick={pauseReplay} variant="secondary">
-                      <Pause className="w-4 h-4 mr-2" />
-                      Pause
-                    </Button>
-                  )}
-                  <Button 
-                    onClick={resetReplay} 
-                    variant="outline" 
-                    className="border-slate-600 text-slate-300 hover:bg-slate-700"
-                    disabled={isWheelSpinning}
-                  >
-                    <RotateCcw className="w-4 h-4 mr-2" />
-                    Reset
-                  </Button>
-                </div>
-
-                {/* Replay Progress */}
-                {spinResults.length > 0 && (
-                  <div className="w-full max-w-md">
-                    <div className="flex justify-between text-sm text-slate-400 mb-2">
-                      <span>Replay Progress</span>
-                      <span>{Math.max(0, replayIndex + 1)} / {spinResults.length} spins</span>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {spinResults.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-slate-400">No spins recorded in this session</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center">
+                    {/* Arrow pointer at the TOP - matching admin version */}
+                    <div className="mb-2">
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <polygon 
+                          points="20,35 10,10 30,10" 
+                          fill="#3b82f6"
+                          stroke="#1e293b"
+                          strokeWidth="2"
+                        />
+                      </svg>
                     </div>
-                    <Progress 
-                      value={(Math.max(0, replayIndex + 1) / spinResults.length) * 100} 
-                      className="h-2" 
-                    />
+
+                    {/* Wheel canvas */}
+                    <div className="relative wheel-glow rounded-full">
+                      <canvas
+                        ref={canvasRef}
+                        width={350}
+                        height={350}
+                        className="rounded-full"
+                      />
+                    </div>
+
+                    {/* Current winner announcement */}
+                    {currentWinner && (
+                      <div className="mt-6 bg-slate-700/50 border border-slate-600/50 rounded-2xl p-6 text-center animate-pulse">
+                        <p className="text-sm text-slate-400 mb-1 uppercase tracking-wider flex items-center justify-center gap-2">
+                          {currentWinner.is_auto_selected ? (
+                            <><Sparkles className="w-4 h-4" /> Auto-Selected (Last Member)</>
+                          ) : (
+                            <>Spin #{currentWinner.spin_number} Winner</>
+                          )}
+                        </p>
+                        <h2 className="text-2xl font-bold text-blue-400">
+                          {currentWinner.winner_name}
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {format(new Date(currentWinner.created_at), "h:mm:ss a")}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Progress indicator */}
+                    <div className="mt-4 text-sm text-slate-400">
+                      {replayIndex >= 0 ? (
+                        <span>Selection {Math.min(replayIndex + 1, spinResults.length)} of {spinResults.length}</span>
+                      ) : (
+                        <span>Ready to replay {spinResults.length} selections</span>
+                      )}
+                    </div>
+
+                    {/* Current members on wheel */}
+                    {currentMembers.length > 0 && (
+                      <div className="mt-4 flex flex-wrap justify-center gap-2">
+                        {currentMembers.map((member) => (
+                          <Badge key={member.id} variant="outline" className="text-xs border-slate-600 text-slate-300">
+                            {member.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
             </Card>
           </div>
 
-          {/* Right Column - Spin History */}
-          <div>
-            <Card className="bg-slate-800/50 border-slate-700/50">
+          {/* Results Timeline */}
+          <div className="lg:col-span-4">
+            <Card className="bg-slate-800/50 border-slate-700/50 h-full">
               <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-white">
                   <Trophy className="w-5 h-5 text-yellow-500" />
-                  Spin Results
+                  Selection Order ({spinResults.length})
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[450px]">
-                  <div className="space-y-2">
-                    {spinResults.length === 0 ? (
-                      <p className="text-center text-slate-400 py-4">No spins recorded</p>
-                    ) : (
-                      spinResults.map((spin, index) => (
-                        <div
-                          key={spin.id}
-                          onClick={() => !isWheelSpinning && skipToSpin(index)}
-                          className={`p-3 rounded-lg cursor-pointer transition-all ${
-                            replayIndex === index
-                              ? "bg-blue-500/20 border border-blue-500/50 ring-2 ring-blue-500/30"
-                              : currentWinner?.id === spin.id
-                              ? "bg-yellow-500/20 border border-yellow-500/50"
-                              : "bg-slate-700/30 hover:bg-slate-700/50 border border-transparent"
+                {spinResults.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-slate-400">No spins recorded</p>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[450px] pr-4">
+                    <div className="space-y-3">
+                      {spinResults.map((result, index) => (
+                        <button
+                          key={result.id}
+                          onClick={() => skipToSpin(index)}
+                          disabled={isWheelSpinning}
+                          className={`w-full text-left relative flex flex-col gap-2 p-4 rounded-xl border transition-all duration-300 hover:border-blue-500/50 ${
+                            replayIndex === index 
+                              ? "border-blue-500/50 bg-blue-500/10" 
+                              : replayIndex > index
+                              ? "border-emerald-500/30 bg-emerald-500/5"
+                              : "border-slate-700/50 bg-slate-800/50"
                           } ${isWheelSpinning ? "pointer-events-none opacity-50" : ""}`}
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                                replayIndex === index 
-                                  ? "bg-blue-500 text-white" 
-                                  : currentWinner?.id === spin.id
-                                  ? "bg-yellow-500 text-black"
-                                  : "bg-slate-600 text-white"
-                              }`}>
-                                {spin.spin_number}
-                              </div>
-                              <div>
-                                <p className={`font-medium ${
-                                  currentWinner?.id === spin.id ? "text-yellow-400" : "text-white"
-                                }`}>
-                                  {spin.winner_name}
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                  {format(new Date(spin.created_at), "h:mm:ss a")}
-                                </p>
-                              </div>
+                          <div className="flex items-center gap-3">
+                            {/* Spin number badge */}
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
+                              replayIndex === index 
+                                ? "bg-amber-500 text-white" 
+                                : replayIndex > index
+                                ? "bg-emerald-500 text-white"
+                                : "bg-slate-700 text-slate-400"
+                            }`}>
+                              {result.spin_number}
                             </div>
-                            <div className="flex items-center gap-2">
-                              {spin.is_auto_selected && (
+                            
+                            <div className="flex-1 min-w-0">
+                              <p className={`font-medium truncate ${
+                                replayIndex === index ? "text-white" : "text-slate-300"
+                              }`}>
+                                {result.winner_name}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                {format(new Date(result.created_at), "h:mm:ss a")}
+                              </p>
+                            </div>
+
+                            {/* Status indicators */}
+                            <div className="flex items-center gap-1">
+                              {result.is_auto_selected && (
                                 <Badge variant="outline" className="text-xs border-slate-600 text-slate-400">
                                   Auto
                                 </Badge>
                               )}
-                              {replayIndex === index && isWheelSpinning && (
-                                <Badge className="bg-blue-500/20 text-blue-400 text-xs">
-                                  Playing
+                              {replayIndex === index && (
+                                <Badge className="bg-amber-500/20 text-amber-400 text-xs">
+                                  Current
                                 </Badge>
                               )}
-                              {currentWinner?.id === spin.id && !isWheelSpinning && (
-                                <Trophy className="w-4 h-4 text-yellow-500" />
+                              {replayIndex > index && (
+                                <Badge className="bg-emerald-500/20 text-emerald-400 text-xs">
+                                  Done
+                                </Badge>
                               )}
                             </div>
                           </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </ScrollArea>
+                        </button>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
               </CardContent>
             </Card>
           </div>

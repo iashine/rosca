@@ -204,14 +204,6 @@ const MemberSessionReplay = () => {
     const normalizedTarget = ((targetAngle % 360) + 360) % 360;
     const totalRotation = extraRotations + normalizedTarget;
 
-    console.log("Member Replay Animation:", {
-      targetAngle,
-      normalizedTarget,
-      totalRotation,
-      members: members.map(m => m.name),
-      winner: spin.winner_name
-    });
-
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
@@ -224,7 +216,6 @@ const MemberSessionReplay = () => {
       if (progress < 1) {
         animationRef.current = requestAnimationFrame(animate);
       } else {
-        console.log("Member Replay Complete - final rotation:", normalizedTarget);
         // Ensure we end exactly at the target angle
         setWheelRotation(normalizedTarget);
         drawWheel(members, normalizedTarget);
@@ -232,7 +223,6 @@ const MemberSessionReplay = () => {
         setCurrentWinner(spin);
         
         const winnerIndex = members.findIndex(m => m.id === spin.winner_member_id);
-        console.log("Winner index:", winnerIndex, "for", spin.winner_name);
         drawWheel(members, normalizedTarget, winnerIndex);
         
         confetti({

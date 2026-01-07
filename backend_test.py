@@ -625,6 +625,9 @@ class ROSCAAPITester:
         self.test_get_audit_logs()
         self.test_get_stats()
 
+        # Test member portal functionality with session_id
+        self.test_member_portal_complete_flow()
+
         return True
 
     def print_summary(self):

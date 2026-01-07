@@ -18,11 +18,23 @@ import {
   RefreshCw,
   Circle,
   Play,
-  Bell
+  Bell,
+  Sparkles,
+  ArrowRight
 } from "lucide-react";
 import { format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+
+// Format date in CST timezone
+const formatCST = (dateString, formatStr) => {
+  try {
+    return formatInTimeZone(new Date(dateString), 'America/Chicago', formatStr);
+  } catch (e) {
+    return format(new Date(dateString), formatStr);
+  }
+};
 
 const MemberPortal = () => {
   const { groupId } = useParams();

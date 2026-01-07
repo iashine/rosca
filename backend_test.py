@@ -379,6 +379,163 @@ class ROSCAAPITester:
         )
         return success
 
+    def test_admin_login(self):
+        """Test admin login with provided credentials"""
+        success, response = self.run_test(
+            "Admin Login",
+            "POST",
+            "auth/login",
+            200,
+            data={
+                "email": "admin@rosca.com",
+                "password": "admin123"
+            }
+        )
+        
+        if success and 'access_token' in response:
+            self.token = response['access_token']
+            self.user_id = response['user']['id']
+            return True
+        return False
+
+    def test_get_members_with_access(self):
+        """Test get members with access info (passcodes)"""
+        if not hasattr(self, 'group_id'):
+            self.log_test("Get Members with Access", False, "No group_id available")
+            return False
+            
+        success, response = self.run_test(
+            "Get Members with Access",
+            "GET",
+            f"groups/{self.group_id}/members-access",
+            200
+        )
+        
+        if success and response:
+            # Store member passcode for later use
+            if len(response) > 0:
+                self.member_passcode = response[0].get('passcode')
+                self.member_name = response[0].get('name')
+                self.member_id = response[0].get('id')
+            return True
+        return False
+
+    def test_get_group_access_link(self):
+        """Test get group access link"""
+        if not hasattr(self, 'group_id'):
+            self.log_test("Get Group Access Link", False, "No group_id available")
+            return False
+            
+        success, response = self.run_test(
+            "Get Group Access Link",
+            "GET",
+            f"groups/{self.group_id}/access-link",
+            200
+        )
+        
+        if success and 'access_code' in response:
+            self.access_code = response['access_code']
+            return True
+        return False
+
+    def test_member_portal_login(self):
+        """Test member login via group access"""
+        if not hasattr(self, 'access_code') or not hasattr(self, 'member_passcode'):
+            self.log_test("Member Portal Login", False, "No access_code or member_passcode available")
+            return False
+            
+        success, response = self.run_test(
+            "Member Portal Login",
+            "POST",
+            f"group-access/{self.access_code}/login",
+            200,
+            data={
+                "passcode": self.member_passcode
+            }
+        )
+        
+        if success and 'access_token' in response:
+            self.member_token = response['access_token']
+            return True
+        return False
+
+    def test_member_portal_group_data(self):
+        """Test member portal group data endpoint - verify session_id in recent_spins"""
+        if not hasattr(self, 'member_token'):
+            self.log_test("Member Portal Group Data", False, "No member_token available")
+            return False
+            
+        # Use member token for this request
+        original_token = self.token
+        self.token = self.member_token
+        
+        success, response = self.run_test(
+            "Member Portal Group Data",
+            "GET",
+            "member-portal/group",
+            200
+        )
+        
+        # Restore original token
+        self.token = original_token
+        
+        if success:
+            # Check if recent_spins contains session_id
+            recent_spins = response.get('recent_spins', [])
+            if recent_spins:
+                first_spin = recent_spins[0]
+                if 'session_id' in first_spin and first_spin['session_id'] is not None:
+                    self.log_test("Member Portal Session ID Check", True, f"session_id found: {first_spin['session_id']}")
+                    return True
+                else:
+                    self.log_test("Member Portal Session ID Check", False, "session_id missing or null in recent_spins")
+                    return False
+            else:
+                self.log_test("Member Portal Session ID Check", False, "No recent_spins found")
+                return False
+        return False
+
+    def test_member_portal_complete_flow(self):
+        """Test complete member portal flow with session_id verification"""
+        print("\n🔍 Testing Member Portal API session_id functionality...")
+        
+        # Step 1: Login as admin
+        if not self.test_admin_login():
+            return False
+        
+        # Step 2: Create a group
+        if not self.test_create_group():
+            return False
+        
+        # Step 3: Add a member
+        if not self.test_add_member():
+            return False
+        
+        # Step 4: Create and complete a spin session
+        if not self.test_create_session():
+            return False
+        
+        if not self.test_record_spin():
+            return False
+        
+        if not self.test_end_session():
+            return False
+        
+        # Step 5: Get member access info
+        if not self.test_get_members_with_access():
+            return False
+        
+        # Step 6: Get group access link
+        if not self.test_get_group_access_link():
+            return False
+        
+        # Step 7: Login as member
+        if not self.test_member_portal_login():
+            return False
+        
+        # Step 8: Test member portal endpoint for session_id
+        return self.test_member_portal_group_data()
+
     def test_remove_member(self):
         """Test removing member from group"""
         if not hasattr(self, 'group_id') or not hasattr(self, 'member_id'):

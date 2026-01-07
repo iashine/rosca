@@ -529,8 +529,11 @@ class ROSCAAPITester:
         if not self.test_create_group():
             return False
         
-        # Step 3: Add a member
+        # Step 3: Add members (need at least 2 for session)
         if not self.test_add_member():
+            return False
+        
+        if not self.test_add_second_member():
             return False
         
         # Step 4: Create and complete a spin session

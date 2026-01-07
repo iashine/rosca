@@ -276,7 +276,7 @@ const MemberSessionReplay = () => {
     setCurrentWinner(null);
     setIsReplaying(true);
     
-    // Reset to first spin's members
+    // Reset to first spin's members and draw at rotation 0
     if (spinResults.length > 0 && spinResults[0].members_at_spin) {
       setCurrentMembers(spinResults[0].members_at_spin);
       drawWheel(spinResults[0].members_at_spin, 0);
@@ -303,6 +303,7 @@ const MemberSessionReplay = () => {
 
   const skipToSpin = (index) => {
     pauseReplay();
+    setWheelRotation(0); // Reset rotation before skipping
     setReplayIndex(index);
     animateToSpin(index);
   };

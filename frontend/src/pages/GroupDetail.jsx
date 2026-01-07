@@ -472,7 +472,7 @@ const GroupDetail = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {accessLink && (
+                {accessLink ? (
                   <div className="flex gap-2">
                     <Input
                       value={accessLink.access_link}
@@ -482,9 +482,15 @@ const GroupDetail = () => {
                     <Button 
                       variant="outline"
                       onClick={() => copyToClipboard(accessLink.access_link, "Link")}
+                      title="Copy link"
                     >
                       <Copy className="w-4 h-4" />
                     </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Loading access link...</span>
                   </div>
                 )}
               </CardContent>

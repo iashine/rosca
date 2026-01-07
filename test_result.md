@@ -212,7 +212,8 @@ metadata:
   run_ui: true
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Root route shows Landing Page instead of Login"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -226,3 +227,5 @@ agent_communication:
       message: "FRONTEND TESTING COMPLETE: ✅ CLIPBOARD FUNCTIONALITY FIXED - Both Group Access Link copy and Member Passcode copy are working correctly with success toast notifications. ❌ MEMBER PORTAL AUTHENTICATION ISSUE - Member portal redirects to login page instead of showing the portal interface, indicating session/authentication problems. The auto-refresh and replay button features cannot be tested due to this authentication issue. Main agent needs to investigate member portal authentication flow."
     - agent: "main"
       message: "MANUAL VERIFICATION COMPLETE: All features working correctly. 1) Clipboard copy - shows success toasts, 2) Member Portal auth - working correctly (testing agent had stale session issue), 3) Auto-refresh - green dot indicator visible, 4) Replay button - visible next to spins with play icon. Backend session_id fix verified via API testing."
+    - agent: "main"
+      message: "ROOT ROUTE FIX COMPLETE: Fixed the routing so root URL (/) shows Landing Page instead of redirecting to login. Changes made: 1) Root route now renders Landing component directly, 2) Dashboard moved to /dashboard, 3) Post-login redirects updated to /dashboard, 4) Layout logo links to /dashboard, 5) Deleted obsolete MemberSessionReplay.jsx. Please verify: a) Visit root URL (/) - should show Landing Page, b) Click Sign In - should go to /login, c) Login with admin@rosca.com/admin123 - should redirect to /dashboard, d) Click logo in header - should stay on /dashboard"

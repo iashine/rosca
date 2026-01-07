@@ -246,8 +246,20 @@ const GroupDetail = () => {
     }
   };
 
-  const copyToClipboard = (text, label) => {
-    // Create a temporary textarea element
+  const copyToClipboard = async (text, label) => {
+    // Try modern clipboard API first
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        toast.success(`${label} copied!`);
+        return;
+      } catch (err) {
+        // Fall through to fallback method
+        console.log("Clipboard API failed, using fallback");
+      }
+    }
+    
+    // Fallback: Create a temporary textarea element
     const textArea = document.createElement("textarea");
     textArea.value = text;
     
@@ -263,10 +275,17 @@ const GroupDetail = () => {
     textArea.style.boxShadow = "none";
     textArea.style.background = "transparent";
     textArea.style.opacity = "0";
+    textArea.setAttribute("readonly", "");
     
     document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
+    
+    // Handle iOS devices
+    const range = document.createRange();
+    range.selectNodeContents(textArea);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    textArea.setSelectionRange(0, 999999);
     
     try {
       const successful = document.execCommand("copy");
@@ -282,6 +301,7 @@ const GroupDetail = () => {
     }
     
     document.body.removeChild(textArea);
+    selection.removeAllRanges();
   };
 
   const handleSendChat = async (e) => {

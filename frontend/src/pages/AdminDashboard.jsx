@@ -920,14 +920,14 @@ const AdminDashboard = () => {
                   <CardDescription>All visitor IPs with location data</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Select value={countryFilter} onValueChange={(v) => { setCountryFilter(v); }}>
+                  <Select value={countryFilter || "all"} onValueChange={(v) => { setCountryFilter(v === "all" ? "" : v); }}>
                     <SelectTrigger className="w-32">
                       <SelectValue placeholder="Country" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Countries</SelectItem>
+                      <SelectItem value="all">All Countries</SelectItem>
                       {ipStats.top_countries?.map(c => (
-                        <SelectItem key={c.country} value={c.country || "UNKNOWN"}>
+                        <SelectItem key={c.country || "unknown"} value={c.country || "UNKNOWN"}>
                           {c.country || "Unknown"} ({c.count})
                         </SelectItem>
                       ))}

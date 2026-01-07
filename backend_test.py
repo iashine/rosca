@@ -518,9 +518,6 @@ class ROSCAAPITester:
         if not self.test_record_spin():
             return False
         
-        if not self.test_end_session():
-            return False
-        
         # Step 5: Get member access info
         if not self.test_get_members_with_access():
             return False

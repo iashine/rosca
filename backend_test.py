@@ -247,10 +247,9 @@ class ROSCAAPITester:
         success, response = self.run_test(
             "Create Session",
             "POST",
-            "sessions",
+            f"groups/{self.group_id}/sessions",
             200,
             data={
-                "group_id": self.group_id,
                 "notes": "Test session"
             }
         )

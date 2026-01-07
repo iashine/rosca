@@ -129,12 +129,12 @@ const SessionReplay = () => {
     ctx.fillText("SPIN", centerX, centerY);
   }, [wheelTheme.wheel_colors]);
 
-  // Initial wheel draw
+  // Initial wheel draw - only when not spinning
   useEffect(() => {
-    if (currentMembers.length > 0) {
-      drawWheel(currentMembers, 0);
+    if (currentMembers.length > 0 && !isWheelSpinning) {
+      drawWheel(currentMembers, wheelRotation);
     }
-  }, [currentMembers, drawWheel]);
+  }, [currentMembers, drawWheel, isWheelSpinning, wheelRotation]);
 
   // Animate wheel to a specific spin result
   const animateToSpin = useCallback((spinIndex) => {

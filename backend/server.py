@@ -1483,7 +1483,10 @@ async def get_member_group_data(request: Request):
             "id": s["id"],
             "session_id": s.get("session_id"),
             "winner_name": s["winner_name"],
+            "winner_member_id": s.get("winner_member_id"),
             "spin_number": s.get("spin_number", 0),
+            "members_at_spin": s.get("members_at_spin", []),
+            "is_auto_selected": s.get("is_auto_selected", False),
             "created_at": s["created_at"]
         } for s in spins[:10]],
         "members": online_members

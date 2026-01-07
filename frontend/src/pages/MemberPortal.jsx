@@ -79,6 +79,162 @@ const MemberPortal = () => {
     }
   });
 
+  // Draw wheel function for replay modal
+  const drawWheel = useCallback((canvas, members, rotation, highlightWinnerId = null) => {
+    if (!canvas || members.length === 0) return;
+
+    const ctx = canvas.getContext("2d");
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(centerX, centerY) - 15;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const sliceAngle = (2 * Math.PI) / members.length;
+    const colors = DEFAULT_WHEEL_COLORS;
+
+    members.forEach((member, index) => {
+      const startAngle = index * sliceAngle + (rotation * Math.PI) / 180;
+      const endAngle = startAngle + sliceAngle;
+
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+      ctx.closePath();
+
+      ctx.fillStyle = colors[index % colors.length];
+      ctx.fill();
+
+      const isWinner = member.id === highlightWinnerId;
+      ctx.strokeStyle = isWinner ? "#22c55e" : "rgba(255, 255, 255, 0.3)";
+      ctx.lineWidth = isWinner ? 4 : 2;
+      ctx.stroke();
+
+      ctx.save();
+      ctx.translate(centerX, centerY);
+      ctx.rotate(startAngle + sliceAngle / 2);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `bold ${Math.max(10, Math.min(14, 160 / members.length))}px 'Outfit', sans-serif`;
+      ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+      ctx.shadowBlur = 2;
+      
+      let displayName = member.name;
+      if (displayName.length > 10) {
+        displayName = displayName.substring(0, 8) + "...";
+      }
+      
+      ctx.fillText(displayName, radius - 15, 4);
+      ctx.restore();
+    });
+
+    // Center circle
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 20, 0, 2 * Math.PI);
+    ctx.fillStyle = "#1e293b";
+    ctx.fill();
+    ctx.strokeStyle = "#3b82f6";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }, []);
+
+  // Start countdown for auto-close
+  const startCountdown = useCallback(() => {
+    setCountdown(10);
+    countdownRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownRef.current);
+          setCanClose(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  // Play replay for a specific spin
+  const playReplay = useCallback((spin) => {
+    setReplayingSpin(spin);
+    setShowWinner(false);
+    setIsWheelSpinning(true);
+    setCanClose(false);
+    setCountdown(0);
+
+    setTimeout(() => {
+      const canvas = canvasRef.current;
+      if (!canvas || !spin.members_at_spin || spin.members_at_spin.length === 0) {
+        setIsWheelSpinning(false);
+        setShowWinner(true);
+        startCountdown();
+        return;
+      }
+
+      const members = spin.members_at_spin;
+      const targetAngle = spin.spin_angle || 0;
+      
+      if (spin.is_auto_selected) {
+        drawWheel(canvas, members, 0, spin.winner_member_id);
+        setIsWheelSpinning(false);
+        setShowWinner(true);
+        startCountdown();
+        return;
+      }
+
+      let currentRotation = 0;
+      const duration = 3500;
+      const startTime = Date.now();
+      const extraRotations = 3 * 360;
+      const totalRotation = extraRotations + targetAngle;
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        
+        currentRotation = totalRotation * easeOut;
+        drawWheel(canvas, members, currentRotation);
+
+        if (progress < 1) {
+          animationRef.current = requestAnimationFrame(animate);
+        } else {
+          setIsWheelSpinning(false);
+          setShowWinner(true);
+          drawWheel(canvas, members, currentRotation, spin.winner_member_id);
+          
+          confetti({
+            particleCount: 60,
+            spread: 50,
+            origin: { y: 0.6 },
+            colors: DEFAULT_WHEEL_COLORS
+          });
+
+          startCountdown();
+        }
+      };
+
+      drawWheel(canvas, members, 0);
+      animationRef.current = requestAnimationFrame(animate);
+    }, 100);
+  }, [drawWheel, startCountdown]);
+
+  // Close replay modal
+  const closeReplay = useCallback(() => {
+    if (!canClose) return;
+    
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+    }
+    setReplayingSpin(null);
+    setIsWheelSpinning(false);
+    setShowWinner(false);
+    setCountdown(0);
+    setCanClose(true);
+  }, [canClose]);
+
   const fetchGroupData = useCallback(async (showAlert = false) => {
     try {
       const res = await apiClient.get("/api/member-portal/group");

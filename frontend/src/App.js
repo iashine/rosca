@@ -21,6 +21,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import RestrictedAccess from "./pages/RestrictedAccess";
 import GroupAccess from "./pages/GroupAccess";
 import MemberPortal from "./pages/MemberPortal";
+import MemberSessionReplay from "./pages/MemberSessionReplay";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;

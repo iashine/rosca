@@ -262,72 +262,172 @@ const MemberPortal = () => {
               </CardContent>
             </Card>
 
-            {/* Recent Spins with Replay */}
+            {/* Spin History Table */}
             <Card className="bg-slate-800/50 border-slate-700/50">
               <CardHeader className="pb-3 flex flex-row items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2 text-white">
-                  <Clock className="w-5 h-5 text-blue-400" />
-                  Recent Winners
+                  <Trophy className="w-5 h-5 text-yellow-400" />
+                  Spin History
                 </CardTitle>
                 <div className="flex items-center gap-2 text-xs text-slate-500">
                   <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                   Auto-refreshing
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-0">
                 {recentSpins.length === 0 ? (
-                  <p className="text-slate-400 text-center py-4">
+                  <p className="text-slate-400 text-center py-8">
                     No spins recorded yet.
                   </p>
                 ) : (
-                  <div className="space-y-3">
-                    {recentSpins.map((spin, index) => (
-                      <div 
-                        key={spin.id}
-                        className={`flex items-center justify-between p-3 rounded-lg transition-all ${
-                          index === 0 
-                            ? "bg-yellow-500/10 border border-yellow-500/20" 
-                            : "bg-slate-700/30 hover:bg-slate-700/50"
-                        } ${index === 0 && newSpinAlert ? 'animate-pulse' : ''}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            index === 0 ? "bg-yellow-500 text-black" : "bg-slate-600 text-white"
-                          }`}>
-                            {index === 0 ? <Trophy className="w-5 h-5" /> : spin.spin_number}
-                          </div>
-                          <div>
-                            <p className={`font-medium ${index === 0 ? "text-yellow-400" : "text-white"}`}>
-                              {spin.winner_name}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              Spin #{spin.spin_number} • {format(new Date(spin.created_at), "MMM d, h:mm a")}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {index === 0 && (
-                            <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
-                              Latest
-                            </Badge>
-                          )}
-                          {spin.session_id && (
-                            <Link to={`/member-session-replay/${spin.session_id}`}>
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
-                                title="Watch replay"
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-slate-700 bg-slate-900/50">
+                            <th className="text-left py-3 px-4 text-sm font-medium text-slate-400 w-16">#</th>
+                            <th className="text-left py-3 px-4 text-sm font-medium text-slate-400">Winner</th>
+                            <th className="text-left py-3 px-4 text-sm font-medium text-slate-400">Members on Wheel</th>
+                            <th className="text-left py-3 px-4 text-sm font-medium text-slate-400">Previously Selected</th>
+                            <th className="text-left py-3 px-4 text-sm font-medium text-slate-400 w-44">Date & Time (CST)</th>
+                            <th className="text-center py-3 px-4 text-sm font-medium text-slate-400 w-24">Replay</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {recentSpins.map((spin, index) => {
+                            const previousWinners = recentSpins
+                              .filter((s, i) => i > index)
+                              .map(s => s.winner_name)
+                              .reverse();
+                            const membersOnWheel = spin.members_at_spin || [];
+                            
+                            return (
+                              <tr 
+                                key={spin.id} 
+                                className={`border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors ${
+                                  index === 0 && newSpinAlert ? 'bg-yellow-500/10 animate-pulse' : ''
+                                }`}
                               >
-                                <Play className="w-4 h-4 mr-1" />
-                                Replay
-                              </Button>
-                            </Link>
-                          )}
-                        </div>
+                                {/* Spin Number */}
+                                <td className="py-3 px-4">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                                    spin.is_auto_selected 
+                                      ? "bg-violet-500/20 text-violet-400"
+                                      : index === 0 
+                                        ? "bg-yellow-500/20 text-yellow-400"
+                                        : "bg-blue-500/20 text-blue-400"
+                                  }`}>
+                                    {spin.spin_number}
+                                  </div>
+                                </td>
+                                
+                                {/* Winner */}
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-2">
+                                    <Trophy className={`w-4 h-4 ${index === 0 ? "text-yellow-400" : "text-blue-400"}`} />
+                                    <span className={`font-medium ${index === 0 ? "text-yellow-400" : "text-white"}`}>
+                                      {spin.winner_name}
+                                    </span>
+                                    {spin.is_auto_selected && (
+                                      <Badge className="text-xs bg-violet-500/20 text-violet-400 border-violet-500/30">
+                                        <Sparkles className="w-3 h-3 mr-1" />
+                                        Auto
+                                      </Badge>
+                                    )}
+                                    {index === 0 && (
+                                      <Badge className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                                        Latest
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </td>
+                                
+                                {/* Members on Wheel */}
+                                <td className="py-3 px-4">
+                                  <div className="flex flex-wrap gap-1">
+                                    {membersOnWheel.length > 0 ? (
+                                      membersOnWheel.map((member) => (
+                                        <Badge 
+                                          key={member.id} 
+                                          variant="outline"
+                                          className={`text-xs ${
+                                            member.id === spin.winner_member_id 
+                                              ? "bg-blue-500/20 text-blue-400 border-blue-500/30" 
+                                              : "bg-slate-700/50 text-slate-300 border-slate-600"
+                                          }`}
+                                        >
+                                          {member.name}
+                                        </Badge>
+                                      ))
+                                    ) : (
+                                      <span className="text-sm text-slate-500">-</span>
+                                    )}
+                                  </div>
+                                </td>
+                                
+                                {/* Previously Selected */}
+                                <td className="py-3 px-4">
+                                  {previousWinners.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {previousWinners.map((name, idx) => (
+                                        <Badge key={idx} className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                                          {name}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-slate-500">First spin</span>
+                                  )}
+                                </td>
+                                
+                                {/* Date & Time in CST */}
+                                <td className="py-3 px-4 text-sm text-slate-400">
+                                  <div>
+                                    {formatCST(spin.created_at, "MMM d, yyyy")}
+                                  </div>
+                                  <div className="text-xs text-slate-500">
+                                    {formatCST(spin.created_at, "h:mm:ss a")} CST
+                                  </div>
+                                </td>
+
+                                {/* Replay Button */}
+                                <td className="py-3 px-4 text-center">
+                                  {spin.session_id && (
+                                    <Link to={`/member-session-replay/${spin.session_id}`}>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 w-8 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                                      >
+                                        <Play className="w-4 h-4" />
+                                      </Button>
+                                    </Link>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    {/* Selection Order Footer */}
+                    <div className="px-4 py-3 bg-slate-900/30 border-t border-slate-700/50">
+                      <div className="flex items-center gap-2 text-sm flex-wrap">
+                        <span className="text-slate-500">Selection order:</span>
+                        {[...recentSpins].reverse().map((spin, idx, arr) => (
+                          <span key={spin.id} className="flex items-center">
+                            <span className={`font-medium ${spin.is_auto_selected ? "text-violet-400" : "text-white"}`}>
+                              {spin.winner_name}
+                            </span>
+                            {idx < arr.length - 1 && (
+                              <ArrowRight className="w-3 h-3 mx-1 text-slate-600" />
+                            )}
+                          </span>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>

@@ -469,11 +469,11 @@ const MemberPortal = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {recentSpins.map((spin, index) => {
-                            const previousWinners = recentSpins
-                              .filter((s, i) => i > index)
-                              .map(s => s.winner_name)
-                              .reverse();
+                          {[...recentSpins].reverse().map((spin, index, arr) => {
+                            const isLatest = index === arr.length - 1;
+                            const previousWinners = arr
+                              .filter((s, i) => i < index)
+                              .map(s => s.winner_name);
                             const membersOnWheel = spin.members_at_spin || [];
                             
                             return (

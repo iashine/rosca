@@ -246,9 +246,27 @@ const GroupDetail = () => {
     }
   };
 
-  const copyToClipboard = (text, label) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${label} copied!`);
+  const copyToClipboard = async (text, label) => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        toast.success(`${label} copied!`);
+      } else {
+        // Fallback for older browsers or non-HTTPS
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+        toast.success(`${label} copied!`);
+      }
+    } catch (err) {
+      console.error("Copy failed:", err);
+      toast.error("Failed to copy. Please copy manually.");
+    }
   };
 
   const handleSendChat = async (e) => {

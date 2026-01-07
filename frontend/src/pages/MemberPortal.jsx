@@ -300,7 +300,7 @@ const MemberPortal = () => {
                             </Badge>
                           )}
                           {spin.session_id && (
-                            <Link to={`/sessions/${spin.session_id}/replay`}>
+                            <Link to={`/member-session-replay/${spin.session_id}`}>
                               <Button 
                                 variant="ghost" 
                                 size="sm"

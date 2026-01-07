@@ -247,67 +247,72 @@ const GroupDetail = () => {
   };
 
   const copyToClipboard = async (text, label) => {
+    // Debug log
+    console.log(`Attempting to copy ${label}:`, text);
+    
     // Ensure we have the text to copy
     if (!text) {
       toast.error(`No ${label.toLowerCase()} to copy`);
       return;
     }
     
+    // Create a string copy to avoid any reference issues
+    const textToCopy = String(text);
+    
     // Try modern clipboard API first
     if (navigator.clipboard && window.isSecureContext) {
       try {
-        await navigator.clipboard.writeText(text);
+        await navigator.clipboard.writeText(textToCopy);
+        console.log(`Successfully copied ${label} using Clipboard API`);
         toast.success(`${label} copied!`);
         return;
       } catch (err) {
-        // Fall through to fallback method
-        console.log("Clipboard API failed, using fallback");
+        console.log("Clipboard API failed, using fallback:", err);
       }
     }
     
     // Fallback: Create a temporary textarea element
     const textArea = document.createElement("textarea");
-    textArea.value = text;
+    textArea.value = textToCopy;
     
     // Make it invisible but still part of the document
     textArea.style.position = "fixed";
-    textArea.style.top = "0";
-    textArea.style.left = "0";
-    textArea.style.width = "2em";
-    textArea.style.height = "2em";
+    textArea.style.top = "-9999px";
+    textArea.style.left = "-9999px";
+    textArea.style.width = "1px";
+    textArea.style.height = "1px";
     textArea.style.padding = "0";
     textArea.style.border = "none";
     textArea.style.outline = "none";
     textArea.style.boxShadow = "none";
     textArea.style.background = "transparent";
-    textArea.style.opacity = "0";
     textArea.setAttribute("readonly", "");
+    textArea.setAttribute("contenteditable", "true");
     
     document.body.appendChild(textArea);
     
-    // Handle iOS devices
-    const range = document.createRange();
-    range.selectNodeContents(textArea);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-    textArea.setSelectionRange(0, 999999);
+    // Select the text
+    textArea.focus();
+    textArea.select();
+    textArea.setSelectionRange(0, textToCopy.length);
     
+    let success = false;
     try {
-      const successful = document.execCommand("copy");
-      if (successful) {
-        toast.success(`${label} copied!`);
-      } else {
-        // Show the text in a prompt as last resort
-        window.prompt(`Copy this ${label.toLowerCase()}:`, text);
-      }
+      success = document.execCommand("copy");
+      console.log(`execCommand copy result:`, success);
     } catch (err) {
-      // Show the text in a prompt as last resort
-      window.prompt(`Copy this ${label.toLowerCase()}:`, text);
+      console.error("execCommand failed:", err);
     }
     
     document.body.removeChild(textArea);
-    selection.removeAllRanges();
+    
+    if (success) {
+      toast.success(`${label} copied!`);
+    } else {
+      // Show the text in a prompt as last resort
+      toast.info(`Please copy manually`);
+      window.prompt(`Copy this ${label.toLowerCase()}:`, textToCopy);
+    }
   };
 
   const handleSendChat = async (e) => {

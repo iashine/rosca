@@ -1214,19 +1214,44 @@ async def add_member(group_id: str, member_data: MemberCreate, current_user: dic
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
     
+    # Ensure group has access code
+    if not group.get("access_code"):
+        access_code = generate_group_access_code()
+        await db.groups.update_one({"id": group_id}, {"$set": {"access_code": access_code}})
+    else:
+        access_code = group["access_code"]
+    
     member_id = str(uuid.uuid4())
+    passcode = generate_easy_passcode()
+    
     member = {
         "id": member_id,
         "name": member_data.name,
         "email": member_data.email,
         "phone": member_data.phone,
         "group_id": group_id,
+        "passcode": passcode,
         "status": "active",
+        "is_online": False,
+        "last_seen": None,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     
     await db.members.insert_one(member)
     await log_audit(current_user["id"], current_user["name"], "ADD_MEMBER", "member", member_id, f"Added member: {member_data.name} to group: {group['name']}")
+    
+    # Send invitation email if email provided
+    if member_data.email:
+        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+        access_link = f"{frontend_url}/group-access/{access_code}"
+        await send_member_invitation_email(
+            to_email=member_data.email,
+            member_name=member_data.name,
+            group_name=group["name"],
+            access_link=access_link,
+            passcode=passcode,
+            moderator_name=current_user["name"]
+        )
     
     return MemberResponse(
         id=member_id,
@@ -1256,6 +1281,95 @@ async def get_members(group_id: str, current_user: dict = Depends(get_current_us
         created_at=m["created_at"]
     ) for m in members]
 
+@api_router.get("/groups/{group_id}/members-access", response_model=List[MemberAccessResponse])
+async def get_members_with_access(group_id: str, current_user: dict = Depends(get_current_user)):
+    """Get members with their access info (passcodes, links) - moderator only"""
+    group = await db.groups.find_one({"id": group_id, "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Ensure group has access code
+    access_code = group.get("access_code")
+    if not access_code:
+        access_code = generate_group_access_code()
+        await db.groups.update_one({"id": group_id}, {"$set": {"access_code": access_code}})
+    
+    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+    access_link = f"{frontend_url}/group-access/{access_code}"
+    
+    members = await db.members.find({"group_id": group_id, "status": "active"}, {"_id": 0}).to_list(1000)
+    
+    return [MemberAccessResponse(
+        id=m["id"],
+        name=m["name"],
+        email=m.get("email"),
+        passcode=m.get("passcode", ""),
+        access_link=access_link,
+        is_online=m.get("is_online", False),
+        last_seen=m.get("last_seen")
+    ) for m in members]
+
+@api_router.put("/groups/{group_id}/members/{member_id}/passcode")
+async def update_member_passcode(group_id: str, member_id: str, data: MemberPasscodeUpdate, current_user: dict = Depends(get_current_user)):
+    """Update member passcode - auto-generate if not provided"""
+    group = await db.groups.find_one({"id": group_id, "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    member = await db.members.find_one({"id": member_id, "group_id": group_id}, {"_id": 0})
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    
+    # Generate or use provided passcode
+    new_passcode = data.passcode if data.passcode else generate_easy_passcode()
+    
+    await db.members.update_one(
+        {"id": member_id},
+        {"$set": {"passcode": new_passcode}}
+    )
+    
+    # Send notification email if member has email
+    if member.get("email"):
+        await send_passcode_update_email(
+            to_email=member["email"],
+            member_name=member["name"],
+            group_name=group["name"],
+            new_passcode=new_passcode
+        )
+    
+    await log_audit(current_user["id"], current_user["name"], "UPDATE_PASSCODE", "member", member_id, f"Updated passcode for: {member['name']}")
+    
+    return {"message": "Passcode updated", "passcode": new_passcode, "email_sent": bool(member.get("email"))}
+
+@api_router.post("/groups/{group_id}/members/{member_id}/resend-invite")
+async def resend_member_invite(group_id: str, member_id: str, current_user: dict = Depends(get_current_user)):
+    """Resend invitation email to member"""
+    group = await db.groups.find_one({"id": group_id, "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    member = await db.members.find_one({"id": member_id, "group_id": group_id}, {"_id": 0})
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    
+    if not member.get("email"):
+        raise HTTPException(status_code=400, detail="Member has no email address")
+    
+    access_code = group.get("access_code", generate_group_access_code())
+    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+    access_link = f"{frontend_url}/group-access/{access_code}"
+    
+    success = await send_member_invitation_email(
+        to_email=member["email"],
+        member_name=member["name"],
+        group_name=group["name"],
+        access_link=access_link,
+        passcode=member.get("passcode", generate_easy_passcode()),
+        moderator_name=current_user["name"]
+    )
+    
+    return {"message": "Invitation sent" if success else "Failed to send invitation", "success": success}
+
 @api_router.delete("/groups/{group_id}/members/{member_id}")
 async def remove_member(group_id: str, member_id: str, current_user: dict = Depends(get_current_user)):
     group = await db.groups.find_one({"id": group_id, "moderator_id": current_user["id"]}, {"_id": 0})
@@ -1270,6 +1384,273 @@ async def remove_member(group_id: str, member_id: str, current_user: dict = Depe
     await log_audit(current_user["id"], current_user["name"], "REMOVE_MEMBER", "member", member_id, f"Removed member: {member['name']} from group: {group['name']}")
     
     return {"message": "Member removed successfully"}
+
+# ============ MEMBER ACCESS ENDPOINTS (PUBLIC) ============
+
+@api_router.get("/group-access/{access_code}/info")
+async def get_group_access_info(access_code: str):
+    """Get group info by access code (public)"""
+    group = await db.groups.find_one({"access_code": access_code}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    return {
+        "group_id": group["id"],
+        "group_name": group["name"],
+        "description": group.get("description", "")
+    }
+
+@api_router.post("/group-access/{access_code}/login")
+async def member_login(access_code: str, data: GroupAccessRequest):
+    """Login with passcode to access group"""
+    group = await db.groups.find_one({"access_code": access_code}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Find member by passcode
+    member = await db.members.find_one({
+        "group_id": group["id"],
+        "passcode": data.passcode,
+        "status": "active"
+    }, {"_id": 0})
+    
+    if not member:
+        raise HTTPException(status_code=401, detail="Invalid passcode")
+    
+    # Create access token
+    token = create_member_access_token(member["id"], group["id"], member["name"])
+    
+    # Update last seen
+    await db.members.update_one(
+        {"id": member["id"]},
+        {"$set": {"is_online": True, "last_seen": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return GroupAccessTokenResponse(
+        access_token=token,
+        member_id=member["id"],
+        member_name=member["name"],
+        group_id=group["id"],
+        group_name=group["name"]
+    )
+
+@api_router.get("/member-portal/group")
+async def get_member_group_data(request: Request):
+    """Get group data for member portal"""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization")
+    
+    token = auth_header[7:]
+    member_info = await get_member_from_token(token)
+    if not member_info:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    group = await db.groups.find_one({"id": member_info["group_id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Get active session
+    session = await db.sessions.find_one({"group_id": group["id"], "status": "in_progress"}, {"_id": 0})
+    
+    # Get all spins for this group
+    spins = await db.spin_results.find({"group_id": group["id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    
+    # Get all members
+    members = await db.members.find({"group_id": group["id"], "status": "active"}, {"_id": 0}).to_list(100)
+    
+    # Get online members
+    online_members = [{"member_id": m["id"], "member_name": m["name"], "is_online": m.get("is_online", False), "last_seen": m.get("last_seen", "")} for m in members]
+    
+    return {
+        "group": {
+            "id": group["id"],
+            "name": group["name"],
+            "description": group.get("description", ""),
+            "contribution_amount": group.get("contribution_amount", 0),
+            "currency": group.get("currency", "USD")
+        },
+        "current_member": {
+            "id": member_info["sub"],
+            "name": member_info["member_name"]
+        },
+        "session": {
+            "id": session["id"] if session else None,
+            "status": session["status"] if session else None,
+            "started_at": session["started_at"] if session else None
+        } if session else None,
+        "recent_spins": [{
+            "id": s["id"],
+            "winner_name": s["winner_name"],
+            "spin_number": s.get("spin_number", 0),
+            "created_at": s["created_at"]
+        } for s in spins[:10]],
+        "members": online_members
+    }
+
+@api_router.post("/member-portal/heartbeat")
+async def member_heartbeat(request: Request):
+    """Update member online status"""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization")
+    
+    token = auth_header[7:]
+    member_info = await get_member_from_token(token)
+    if not member_info:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    await db.members.update_one(
+        {"id": member_info["sub"]},
+        {"$set": {"is_online": True, "last_seen": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Get all members with online status
+    members = await db.members.find({"group_id": member_info["group_id"], "status": "active"}, {"_id": 0}).to_list(100)
+    
+    # Mark members offline if last seen > 30 seconds ago
+    now = datetime.now(timezone.utc)
+    online_members = []
+    for m in members:
+        last_seen = m.get("last_seen")
+        if last_seen:
+            last_seen_dt = datetime.fromisoformat(last_seen.replace("Z", "+00:00"))
+            is_online = (now - last_seen_dt).total_seconds() < 30
+        else:
+            is_online = False
+        
+        online_members.append({
+            "member_id": m["id"],
+            "member_name": m["name"],
+            "is_online": is_online,
+            "last_seen": m.get("last_seen", "")
+        })
+    
+    return {"online_members": online_members}
+
+# ============ CHAT ENDPOINTS ============
+
+@api_router.get("/member-portal/chat")
+async def get_chat_messages(request: Request, limit: int = 50):
+    """Get chat messages for group"""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization")
+    
+    token = auth_header[7:]
+    member_info = await get_member_from_token(token)
+    if not member_info:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    messages = await db.chat_messages.find(
+        {"group_id": member_info["group_id"]}, 
+        {"_id": 0}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    # Reverse to get chronological order
+    messages.reverse()
+    
+    return [ChatMessageResponse(
+        id=m["id"],
+        group_id=m["group_id"],
+        member_id=m["member_id"],
+        member_name=m["member_name"],
+        content=m["content"],
+        created_at=m["created_at"]
+    ) for m in messages]
+
+@api_router.post("/member-portal/chat")
+async def send_chat_message(request: Request, data: ChatMessageCreate):
+    """Send chat message"""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization")
+    
+    token = auth_header[7:]
+    member_info = await get_member_from_token(token)
+    if not member_info:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    if not data.content.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    
+    message_id = str(uuid.uuid4())
+    message = {
+        "id": message_id,
+        "group_id": member_info["group_id"],
+        "member_id": member_info["sub"],
+        "member_name": member_info["member_name"],
+        "content": data.content.strip()[:500],  # Limit to 500 chars
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.chat_messages.insert_one(message)
+    
+    return ChatMessageResponse(**message)
+
+@api_router.get("/groups/{group_id}/chat")
+async def get_group_chat_moderator(group_id: str, current_user: dict = Depends(get_current_user), limit: int = 50):
+    """Get chat messages for group (moderator view)"""
+    group = await db.groups.find_one({"id": group_id, "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    messages = await db.chat_messages.find(
+        {"group_id": group_id}, 
+        {"_id": 0}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    messages.reverse()
+    
+    return [ChatMessageResponse(
+        id=m["id"],
+        group_id=m["group_id"],
+        member_id=m["member_id"],
+        member_name=m["member_name"],
+        content=m["content"],
+        created_at=m["created_at"]
+    ) for m in messages]
+
+@api_router.post("/groups/{group_id}/chat")
+async def send_group_chat_moderator(group_id: str, data: ChatMessageCreate, current_user: dict = Depends(get_current_user)):
+    """Send chat message as moderator"""
+    group = await db.groups.find_one({"id": group_id, "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    if not data.content.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    
+    message_id = str(uuid.uuid4())
+    message = {
+        "id": message_id,
+        "group_id": group_id,
+        "member_id": current_user["id"],
+        "member_name": f"{current_user['name']} (Moderator)",
+        "content": data.content.strip()[:500],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.chat_messages.insert_one(message)
+    
+    return ChatMessageResponse(**message)
+
+@api_router.get("/groups/{group_id}/access-link")
+async def get_group_access_link(group_id: str, current_user: dict = Depends(get_current_user)):
+    """Get or generate group access link"""
+    group = await db.groups.find_one({"id": group_id, "moderator_id": current_user["id"]}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    access_code = group.get("access_code")
+    if not access_code:
+        access_code = generate_group_access_code()
+        await db.groups.update_one({"id": group_id}, {"$set": {"access_code": access_code}})
+    
+    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+    access_link = f"{frontend_url}/group-access/{access_code}"
+    
+    return {"access_code": access_code, "access_link": access_link}
 
 # ============ SESSION ENDPOINTS ============
 

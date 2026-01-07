@@ -303,6 +303,8 @@ const MemberSessionReplay = () => {
 
   // Skip to a specific spin - does NOT start auto-replay mode
   const skipToSpin = (index) => {
+    console.log("skipToSpin called with index:", index);
+    
     // Stop any ongoing replay/animation
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
@@ -314,17 +316,25 @@ const MemberSessionReplay = () => {
     
     // Get the spin data
     const spin = spinResults[index];
-    if (!spin || !spin.members_at_spin) return;
+    if (!spin || !spin.members_at_spin) {
+      console.log("No spin data at index:", index);
+      return;
+    }
     
+    console.log("Setting replayIndex to:", index);
     // Update members first
     setCurrentMembers(spin.members_at_spin);
     setReplayIndex(index);
     
     // Animate after a brief delay to let state update
     setTimeout(() => {
+      console.log("Timeout callback, animating index:", index);
       // Re-fetch the spin to avoid stale closure
       const targetSpin = spinResults[index];
-      if (!targetSpin) return;
+      if (!targetSpin) {
+        console.log("targetSpin not found at index:", index);
+        return;
+      }
       
       const members = targetSpin.members_at_spin || [];
       if (members.length === 0) {
@@ -365,6 +375,7 @@ const MemberSessionReplay = () => {
         if (progress < 1) {
           animationRef.current = requestAnimationFrame(animate);
         } else {
+          console.log("Animation complete for index:", index);
           setWheelRotation(normalizedTarget);
           drawWheel(members, normalizedTarget);
           setIsWheelSpinning(false);

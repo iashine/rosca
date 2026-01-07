@@ -123,11 +123,11 @@ backend:
 frontend:
   - task: "Clipboard copy functionality with fallback"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/pages/GroupDetail.jsx"
     stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: false
           agent: "user"
@@ -135,30 +135,39 @@ frontend:
         - working: "NA"
           agent: "main"
           comment: "Enhanced copyToClipboard function with: 1) Modern navigator.clipboard API first, 2) Fallback with textarea + execCommand, 3) iOS support via setSelectionRange, 4) Final fallback to window.prompt"
+        - working: true
+          agent: "testing"
+          comment: "TESTED: Clipboard functionality is working correctly. Both Group Access Link copy and Member Passcode copy show success toast notifications ('Link copied!' and 'Passcode copied!'). The fallback mechanism is working as console shows 'Clipboard API failed, using fallback' but copy still succeeds. No 'Failed to copy' errors observed."
 
   - task: "Member Portal auto-refresh for new spins"
     implemented: true
-    working: "NA"
+    working: false
     file: "/app/frontend/src/pages/MemberPortal.jsx"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
     needs_retesting: true
     status_history:
         - working: "NA"
           agent: "main"
           comment: "Auto-refresh already implemented with 3-second polling via setInterval. Shows toast notification when new spin is detected."
+        - working: false
+          agent: "testing"
+          comment: "TESTED: Member Portal authentication issue prevents testing. When accessing member portal with valid passcode, user gets redirected to login page instead of seeing the portal interface. Cannot verify auto-refresh functionality due to authentication failure."
 
   - task: "Member Portal Replay button for completed spins"
     implemented: true
-    working: "NA"
+    working: false
     file: "/app/frontend/src/pages/MemberPortal.jsx"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
     needs_retesting: true
     status_history:
         - working: "NA"
           agent: "main"
           comment: "Replay button already implemented, links to /sessions/{session_id}/replay. Backend fix now provides session_id."
+        - working: false
+          agent: "testing"
+          comment: "TESTED: Member Portal authentication issue prevents testing. When accessing member portal with valid passcode, user gets redirected to login page instead of seeing the portal interface. Cannot verify replay button functionality due to authentication failure."
 
 metadata:
   created_by: "main_agent"

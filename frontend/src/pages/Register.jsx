@@ -127,7 +127,7 @@ const Register = () => {
       localStorage.setItem("user", JSON.stringify(res.data.user));
       
       toast.success("Account created successfully!");
-      navigate("/");
+      navigate("/dashboard");
       window.location.reload(); // Refresh to update auth state
     } catch (error) {
       toast.error(error.response?.data?.detail || "Verification failed");

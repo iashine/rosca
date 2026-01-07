@@ -312,18 +312,78 @@ const MemberSessionReplay = () => {
     setCurrentWinner(null);
     setWheelRotation(0);
     
-    // Set the index and animate to that specific spin
+    // Get the spin data
+    const spin = spinResults[index];
+    if (!spin || !spin.members_at_spin) return;
+    
+    // Update members first
+    setCurrentMembers(spin.members_at_spin);
     setReplayIndex(index);
     
-    // Directly animate without triggering useEffect loop
-    const spin = spinResults[index];
-    if (spin && spin.members_at_spin) {
-      setCurrentMembers(spin.members_at_spin);
-      // Small delay to ensure state is updated before animation
-      setTimeout(() => {
-        animateToSpin(index);
-      }, 50);
-    }
+    // Animate after a brief delay to let state update
+    setTimeout(() => {
+      // Re-fetch the spin to avoid stale closure
+      const targetSpin = spinResults[index];
+      if (!targetSpin) return;
+      
+      const members = targetSpin.members_at_spin || [];
+      if (members.length === 0) {
+        setCurrentWinner(targetSpin);
+        return;
+      }
+
+      if (targetSpin.is_auto_selected) {
+        setCurrentWinner(targetSpin);
+        drawWheel(members, 0, 0);
+        confetti({
+          particleCount: 80,
+          spread: 60,
+          origin: { y: 0.6 },
+          colors: DEFAULT_WHEEL_COLORS
+        });
+        return;
+      }
+
+      setIsWheelSpinning(true);
+      
+      const targetAngle = targetSpin.spin_angle;
+      const extraRotations = 3 * 360;
+      const normalizedTarget = ((targetAngle % 360) + 360) % 360;
+      const totalRotation = extraRotations + normalizedTarget;
+      const duration = 4000;
+      const startTime = Date.now();
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        const currentRotation = totalRotation * easeOut;
+        
+        setWheelRotation(currentRotation);
+        drawWheel(members, currentRotation);
+
+        if (progress < 1) {
+          animationRef.current = requestAnimationFrame(animate);
+        } else {
+          setWheelRotation(normalizedTarget);
+          drawWheel(members, normalizedTarget);
+          setIsWheelSpinning(false);
+          setCurrentWinner(targetSpin);
+          
+          const winnerIndex = members.findIndex(m => m.id === targetSpin.winner_member_id);
+          drawWheel(members, normalizedTarget, winnerIndex);
+          
+          confetti({
+            particleCount: 80,
+            spread: 60,
+            origin: { y: 0.6 },
+            colors: DEFAULT_WHEEL_COLORS
+          });
+        }
+      };
+
+      animationRef.current = requestAnimationFrame(animate);
+    }, 100);
   };
 
   if (loading) {

@@ -509,6 +509,132 @@ async def send_password_reset_email(to_email: str, reset_token: str, name: str):
         logging.error(f"Failed to send password reset email: {e}")
         return False
 
+async def send_member_invitation_email(to_email: str, member_name: str, group_name: str, access_link: str, passcode: str, moderator_name: str):
+    """Send invitation email to group member"""
+    if not agentmail_client:
+        logging.warning("AgentMail client not configured, skipping email")
+        return False
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #3b82f6, #6366f1); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+            .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }}
+            .passcode {{ font-size: 24px; font-weight: bold; text-align: center; color: #3b82f6; background: white; padding: 20px; border-radius: 8px; margin: 20px 0; letter-spacing: 2px; font-family: monospace; }}
+            .link {{ display: block; text-align: center; background: #3b82f6; color: white; padding: 15px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0; }}
+            .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 20px; }}
+            .info-box {{ background: #e0e7ff; padding: 15px; border-radius: 8px; margin: 15px 0; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>ROSCA Spin</h1>
+                <p>You're Invited!</p>
+            </div>
+            <div class="content">
+                <p>Hello {member_name},</p>
+                <p><strong>{moderator_name}</strong> has invited you to join the savings group <strong>"{group_name}"</strong> on ROSCA Spin.</p>
+                
+                <div class="info-box">
+                    <p><strong>Your Access Passcode:</strong></p>
+                    <div class="passcode">{passcode}</div>
+                    <p style="text-align: center; font-size: 12px; color: #666;">Keep this passcode private. You'll need it to access the group.</p>
+                </div>
+                
+                <p>Click the button below to access your group:</p>
+                <a href="{access_link}" class="link">Access Group</a>
+                
+                <p>Or copy this link: <br><code>{access_link}</code></p>
+                
+                <p>Once you're in, you can:</p>
+                <ul>
+                    <li>View spin results and winners</li>
+                    <li>Chat with other group members</li>
+                    <li>See who's online</li>
+                    <li>Get real-time updates</li>
+                </ul>
+            </div>
+            <div class="footer">
+                <p>&copy; 2025 ROSCA Spin. All rights reserved.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    try:
+        await asyncio.to_thread(
+            agentmail_client.inboxes.messages.send,
+            AGENTMAIL_INBOX,
+            to=to_email,
+            subject=f"ROSCA Spin - You're invited to join {group_name}",
+            html=html_content
+        )
+        return True
+    except Exception as e:
+        logging.error(f"Failed to send member invitation email: {e}")
+        return False
+
+async def send_passcode_update_email(to_email: str, member_name: str, group_name: str, new_passcode: str):
+    """Send email when passcode is updated"""
+    if not agentmail_client:
+        logging.warning("AgentMail client not configured, skipping email")
+        return False
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+            .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }}
+            .passcode {{ font-size: 24px; font-weight: bold; text-align: center; color: #d97706; background: white; padding: 20px; border-radius: 8px; margin: 20px 0; letter-spacing: 2px; font-family: monospace; }}
+            .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>ROSCA Spin</h1>
+                <p>Passcode Updated</p>
+            </div>
+            <div class="content">
+                <p>Hello {member_name},</p>
+                <p>Your passcode for the group <strong>"{group_name}"</strong> has been updated by the moderator.</p>
+                
+                <p><strong>Your New Passcode:</strong></p>
+                <div class="passcode">{new_passcode}</div>
+                
+                <p>Please use this new passcode to access the group. Your old passcode will no longer work.</p>
+            </div>
+            <div class="footer">
+                <p>&copy; 2025 ROSCA Spin. All rights reserved.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    try:
+        await asyncio.to_thread(
+            agentmail_client.inboxes.messages.send,
+            AGENTMAIL_INBOX,
+            to=to_email,
+            subject=f"ROSCA Spin - Your passcode for {group_name} has been updated",
+            html=html_content
+        )
+        return True
+    except Exception as e:
+        logging.error(f"Failed to send passcode update email: {e}")
+        return False
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])

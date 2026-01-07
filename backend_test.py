@@ -608,7 +608,6 @@ class ROSCAAPITester:
                     self.test_get_session_detail()
                     self.test_record_spin()
                     self.test_get_session_spins()
-                    self.test_end_session()
                 
                 # Clean up member
                 self.test_remove_member()

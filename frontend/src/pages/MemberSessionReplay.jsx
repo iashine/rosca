@@ -154,12 +154,12 @@ const MemberSessionReplay = () => {
     ctx.fillText("SPIN", centerX, centerY);
   }, []);
 
-  // Initial wheel draw
+  // Initial wheel draw - only when not spinning
   useEffect(() => {
-    if (currentMembers.length > 0) {
-      drawWheel(currentMembers, 0);
+    if (currentMembers.length > 0 && !isWheelSpinning) {
+      drawWheel(currentMembers, wheelRotation);
     }
-  }, [currentMembers, drawWheel]);
+  }, [currentMembers, drawWheel, isWheelSpinning, wheelRotation]);
 
   // Animate wheel to a specific spin result - matching admin version exactly
   const animateToSpin = useCallback((spinIndex) => {

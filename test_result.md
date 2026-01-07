@@ -177,10 +177,11 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Clipboard copy functionality with fallback"
     - "Member Portal auto-refresh for new spins"
     - "Member Portal Replay button for completed spins"
-  stuck_tasks: []
+  stuck_tasks:
+    - "Member Portal auto-refresh for new spins"
+    - "Member Portal Replay button for completed spins"
   test_all: false
   test_priority: "high_first"
 

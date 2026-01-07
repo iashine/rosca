@@ -273,6 +273,53 @@ class IPLogResponse(BaseModel):
     first_visit: str
     last_visit: str
 
+# ============ MEMBER ACCESS & COLLABORATION MODELS ============
+
+class MemberPasscodeUpdate(BaseModel):
+    passcode: Optional[str] = None  # If None, auto-generate
+
+class MemberAccessResponse(BaseModel):
+    id: str
+    name: str
+    email: Optional[str]
+    passcode: str
+    access_link: str
+    is_online: bool = False
+    last_seen: Optional[str] = None
+
+class GroupAccessRequest(BaseModel):
+    passcode: str
+
+class GroupAccessTokenResponse(BaseModel):
+    access_token: str
+    member_id: str
+    member_name: str
+    group_id: str
+    group_name: str
+
+class ChatMessageCreate(BaseModel):
+    content: str
+
+class ChatMessageResponse(BaseModel):
+    id: str
+    group_id: str
+    member_id: str
+    member_name: str
+    content: str
+    created_at: str
+
+class OnlineMemberResponse(BaseModel):
+    member_id: str
+    member_name: str
+    is_online: bool
+    last_seen: str
+
+class MemberInviteRequest(BaseModel):
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    send_invite: bool = True  # Whether to send email invite
+
 # ============ AUTH HELPERS ============
 
 def hash_password(password: str) -> str:

@@ -18,6 +18,7 @@ import SessionReplay from "./pages/SessionReplay";
 import ThemeSettings from "./pages/ThemeSettings";
 import AuditLogs from "./pages/AuditLogs";
 import AdminDashboard from "./pages/AdminDashboard";
+import RestrictedAccess from "./pages/RestrictedAccess";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;

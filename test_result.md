@@ -175,6 +175,36 @@ frontend:
           agent: "main"
           comment: "VERIFIED via manual testing: Replay button visible next to spins in Recent Winners section. Button has play icon and links to session replay page. Backend now correctly returns session_id in recent_spins."
 
+  - task: "Root route shows Landing Page instead of Login"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: false
+          agent: "main"
+          comment: "Root route (/) was wrapped in ProtectedRoute, redirecting unauthenticated users to login. This blocks public access to Landing Page for custom domain setup."
+        - working: true
+          agent: "main"
+          comment: "Fixed routing: 1) Root route (/) now renders Landing Page directly, 2) Dashboard moved to /dashboard route, 3) Login/Register now redirect to /dashboard after auth, 4) Layout logo links to /dashboard for authenticated users, 5) ForgotPassword/Register logos link to /landing"
+
+  - task: "Remove obsolete MemberSessionReplay page and route"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "MemberSessionReplay.jsx was made obsolete after implementing replay as modal in MemberPortal.jsx"
+        - working: true
+          agent: "main"
+          comment: "Deleted /app/frontend/src/pages/MemberSessionReplay.jsx file and removed its import and route from App.js"
+
 metadata:
   created_by: "main_agent"
   version: "1.0"

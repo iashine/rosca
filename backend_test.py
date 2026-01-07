@@ -298,6 +298,7 @@ class ROSCAAPITester:
                 "session_id": self.session_id,
                 "winner_member_id": self.member_id,
                 "winner_name": "Test Member",
+                "members_at_spin": [{"id": self.member_id, "name": "Test Member"}],
                 "spin_angle": 180.5,
                 "random_seed": "abc123"
             }

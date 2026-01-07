@@ -480,7 +480,7 @@ const MemberPortal = () => {
                               <tr 
                                 key={spin.id} 
                                 className={`border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors ${
-                                  index === 0 && newSpinAlert ? 'bg-yellow-500/10 animate-pulse' : ''
+                                  isLatest && newSpinAlert ? 'bg-yellow-500/10 animate-pulse' : ''
                                 }`}
                               >
                                 {/* Spin Number */}
@@ -488,7 +488,7 @@ const MemberPortal = () => {
                                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                                     spin.is_auto_selected 
                                       ? "bg-violet-500/20 text-violet-400"
-                                      : index === 0 
+                                      : isLatest 
                                         ? "bg-yellow-500/20 text-yellow-400"
                                         : "bg-blue-500/20 text-blue-400"
                                   }`}>
@@ -499,8 +499,8 @@ const MemberPortal = () => {
                                 {/* Winner */}
                                 <td className="py-3 px-4">
                                   <div className="flex items-center gap-2">
-                                    <Trophy className={`w-4 h-4 ${index === 0 ? "text-yellow-400" : "text-blue-400"}`} />
-                                    <span className={`font-medium ${index === 0 ? "text-yellow-400" : "text-white"}`}>
+                                    <Trophy className={`w-4 h-4 ${isLatest ? "text-yellow-400" : "text-blue-400"}`} />
+                                    <span className={`font-medium ${isLatest ? "text-yellow-400" : "text-white"}`}>
                                       {spin.winner_name}
                                     </span>
                                     {spin.is_auto_selected && (
@@ -509,7 +509,7 @@ const MemberPortal = () => {
                                         Auto
                                       </Badge>
                                     )}
-                                    {index === 0 && (
+                                    {isLatest && (
                                       <Badge className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
                                         Latest
                                       </Badge>
@@ -527,7 +527,7 @@ const MemberPortal = () => {
                                           variant="outline"
                                           className={`text-xs ${
                                             member.id === spin.winner_member_id 
-                                              ? "bg-blue-500/20 text-blue-400 border-blue-500/30" 
+                                              ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
                                               : "bg-slate-700/50 text-slate-300 border-slate-600"
                                           }`}
                                         >

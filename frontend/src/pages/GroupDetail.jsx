@@ -522,7 +522,10 @@ const GroupDetail = () => {
                     />
                     <Button 
                       variant="outline"
-                      onClick={() => copyToClipboard(accessLink.access_link, "Link")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyToClipboard(accessLink.access_link, "Link");
+                      }}
                       title="Copy link"
                     >
                       <Copy className="w-4 h-4" />

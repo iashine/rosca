@@ -337,6 +337,41 @@ def create_token(user_id: str, email: str, role: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
+def generate_easy_passcode() -> str:
+    """Generate an easy-to-remember passcode phrase"""
+    adjectives = ["happy", "bright", "swift", "calm", "bold", "warm", "cool", "wise", "kind", "keen"]
+    nouns = ["star", "moon", "sun", "tree", "bird", "wave", "cloud", "hill", "lake", "leaf"]
+    numbers = [str(random.randint(10, 99))]
+    
+    return f"{random.choice(adjectives)}-{random.choice(nouns)}-{random.choice(numbers)}"
+
+def generate_group_access_code() -> str:
+    """Generate a unique group access code"""
+    return secrets.token_urlsafe(8)
+
+def create_member_access_token(member_id: str, group_id: str, member_name: str) -> str:
+    """Create JWT token for member access"""
+    payload = {
+        "sub": member_id,
+        "group_id": group_id,
+        "member_name": member_name,
+        "type": "member_access",
+        "exp": datetime.now(timezone.utc) + timedelta(hours=24)
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+async def get_member_from_token(token: str) -> dict:
+    """Validate member access token and return member info"""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "member_access":
+            return None
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
 def generate_verification_code() -> str:
     """Generate a 6-digit verification code"""
     return ''.join([str(random.randint(0, 9)) for _ in range(6)])

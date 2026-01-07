@@ -577,11 +577,6 @@ const MemberPortal = () => {
                                       <Play className="w-4 h-4" />
                                     </Button>
                                   )}
-                                      >
-                                        <Play className="w-4 h-4" />
-                                      </Button>
-                                    </Link>
-                                  )}
                                 </td>
                               </tr>
                             );

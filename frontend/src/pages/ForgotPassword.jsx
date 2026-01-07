@@ -77,7 +77,7 @@ const ForgotPassword = () => {
       <div className="w-full max-w-md relative z-10">
         {/* Logo */}
         <div className="flex justify-center mb-8">
-          <Link to="/" className="flex items-center gap-3">
+          <Link to="/landing" className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center shadow-lg">
               <span className="text-2xl font-bold text-white">R</span>
             </div>

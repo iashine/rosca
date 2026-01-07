@@ -63,7 +63,7 @@ export const Layout = ({ children, title }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-3" data-testid="logo-link">
+            <Link to="/dashboard" className="flex items-center gap-3" data-testid="logo-link">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center">
                 <span className="text-xl font-bold text-white">R</span>
               </div>

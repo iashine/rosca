@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -16,7 +16,9 @@ import {
   Clock,
   LogOut,
   RefreshCw,
-  Circle
+  Circle,
+  Play,
+  Bell
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -31,6 +33,8 @@ const MemberPortal = () => {
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [onlineMembers, setOnlineMembers] = useState([]);
+  const [lastSpinCount, setLastSpinCount] = useState(0);
+  const [newSpinAlert, setNewSpinAlert] = useState(false);
   const chatEndRef = useRef(null);
   const pollIntervalRef = useRef(null);
 
@@ -44,11 +48,25 @@ const MemberPortal = () => {
     }
   });
 
-  const fetchGroupData = useCallback(async () => {
+  const fetchGroupData = useCallback(async (showAlert = false) => {
     try {
       const res = await apiClient.get("/api/member-portal/group");
-      setGroupData(res.data);
-      setOnlineMembers(res.data.members || []);
+      const newData = res.data;
+      
+      // Check if there are new spins
+      const newSpinCount = newData.recent_spins?.length || 0;
+      if (showAlert && newSpinCount > lastSpinCount && lastSpinCount > 0) {
+        const latestWinner = newData.recent_spins[0]?.winner_name;
+        toast.success(`🎉 New winner: ${latestWinner}!`, {
+          duration: 5000,
+        });
+        setNewSpinAlert(true);
+        setTimeout(() => setNewSpinAlert(false), 3000);
+      }
+      setLastSpinCount(newSpinCount);
+      
+      setGroupData(newData);
+      setOnlineMembers(newData.members || []);
     } catch (error) {
       if (error.response?.status === 401) {
         toast.error("Session expired. Please login again.");
@@ -57,7 +75,7 @@ const MemberPortal = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [lastSpinCount]);
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -90,21 +108,22 @@ const MemberPortal = () => {
       return;
     }
 
-    fetchGroupData();
+    fetchGroupData(false);
     fetchMessages();
 
-    // Start polling for updates
+    // Start polling for updates - every 3 seconds for real-time feel
     pollIntervalRef.current = setInterval(() => {
       sendHeartbeat();
       fetchMessages();
-    }, 5000); // Every 5 seconds
+      fetchGroupData(true); // Check for new spins
+    }, 3000);
 
     return () => {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
       }
     };
-  }, [memberToken, groupId, navigate, fetchGroupData, fetchMessages, sendHeartbeat]);
+  }, [memberToken, groupId, navigate]);
 
   useEffect(() => {
     // Scroll to bottom when messages change
@@ -135,6 +154,12 @@ const MemberPortal = () => {
     navigate("/");
   };
 
+  const handleManualRefresh = () => {
+    fetchGroupData(false);
+    fetchMessages();
+    toast.success("Refreshed!");
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -163,11 +188,17 @@ const MemberPortal = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {newSpinAlert && (
+              <Badge className="bg-green-500 text-white animate-pulse">
+                <Bell className="w-3 h-3 mr-1" /> New Spin!
+              </Badge>
+            )}
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={() => { fetchGroupData(); fetchMessages(); }}
+              onClick={handleManualRefresh}
               className="text-slate-400 hover:text-white"
+              title="Refresh"
             >
               <RefreshCw className="w-4 h-4" />
             </Button>
@@ -176,6 +207,7 @@ const MemberPortal = () => {
               size="sm" 
               onClick={handleLogout}
               className="text-slate-400 hover:text-red-400"
+              title="Logout"
             >
               <LogOut className="w-4 h-4" />
             </Button>
@@ -188,11 +220,16 @@ const MemberPortal = () => {
           {/* Left Column - Spins & Info */}
           <div className="lg:col-span-2 space-y-6">
             {/* Session Status */}
-            <Card className="bg-slate-800/50 border-slate-700/50">
+            <Card className={`bg-slate-800/50 border-slate-700/50 ${newSpinAlert ? 'ring-2 ring-green-500 ring-opacity-50' : ''}`}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2 text-white">
                   <Trophy className="w-5 h-5 text-yellow-500" />
                   {session ? "Active Spin Cycle" : "No Active Cycle"}
+                  {session && (
+                    <Badge className="ml-2 bg-green-500/20 text-green-400 border-green-500/30">
+                      Live
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -213,13 +250,17 @@ const MemberPortal = () => {
               </CardContent>
             </Card>
 
-            {/* Recent Spins */}
+            {/* Recent Spins with Replay */}
             <Card className="bg-slate-800/50 border-slate-700/50">
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-3 flex flex-row items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2 text-white">
                   <Clock className="w-5 h-5 text-blue-400" />
                   Recent Winners
                 </CardTitle>
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  Auto-refreshing
+                </div>
               </CardHeader>
               <CardContent>
                 {recentSpins.length === 0 ? (
@@ -231,28 +272,47 @@ const MemberPortal = () => {
                     {recentSpins.map((spin, index) => (
                       <div 
                         key={spin.id}
-                        className={`flex items-center justify-between p-3 rounded-lg ${
-                          index === 0 ? "bg-yellow-500/10 border border-yellow-500/20" : "bg-slate-700/30"
-                        }`}
+                        className={`flex items-center justify-between p-3 rounded-lg transition-all ${
+                          index === 0 
+                            ? "bg-yellow-500/10 border border-yellow-500/20" 
+                            : "bg-slate-700/30 hover:bg-slate-700/50"
+                        } ${index === 0 && newSpinAlert ? 'animate-pulse' : ''}`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                             index === 0 ? "bg-yellow-500 text-black" : "bg-slate-600 text-white"
                           }`}>
-                            {index === 0 ? <Trophy className="w-4 h-4" /> : spin.spin_number}
+                            {index === 0 ? <Trophy className="w-5 h-5" /> : spin.spin_number}
                           </div>
                           <div>
                             <p className={`font-medium ${index === 0 ? "text-yellow-400" : "text-white"}`}>
                               {spin.winner_name}
                             </p>
                             <p className="text-xs text-slate-500">
-                              Spin #{spin.spin_number}
+                              Spin #{spin.spin_number} • {format(new Date(spin.created_at), "MMM d, h:mm a")}
                             </p>
                           </div>
                         </div>
-                        <span className="text-xs text-slate-500">
-                          {format(new Date(spin.created_at), "MMM d, h:mm a")}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {index === 0 && (
+                            <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                              Latest
+                            </Badge>
+                          )}
+                          {spin.session_id && (
+                            <Link to={`/sessions/${spin.session_id}/replay`}>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                                title="Watch replay"
+                              >
+                                <Play className="w-4 h-4 mr-1" />
+                                Replay
+                              </Button>
+                            </Link>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -289,6 +349,9 @@ const MemberPortal = () => {
                 <CardTitle className="text-lg flex items-center gap-2 text-white">
                   <Users className="w-5 h-5 text-green-400" />
                   Members
+                  <Badge variant="outline" className="ml-2 text-xs">
+                    {onlineMembers.filter(m => m.is_online).length} online
+                  </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -318,7 +381,7 @@ const MemberPortal = () => {
                           {member.member_id === currentMember?.id && " (You)"}
                         </p>
                         <p className="text-xs text-slate-500">
-                          {member.is_online ? "Online" : "Offline"}
+                          {member.is_online ? "Online now" : "Offline"}
                         </p>
                       </div>
                     </div>

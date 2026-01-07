@@ -421,6 +421,8 @@ class ROSCAAPITester:
             self.second_member_id = response['id']
             return True
         return False
+
+    def test_get_members_with_access(self):
         """Test get members with access info (passcodes)"""
         if not hasattr(self, 'group_id'):
             self.log_test("Get Members with Access", False, "No group_id available")

@@ -247,6 +247,12 @@ const GroupDetail = () => {
   };
 
   const copyToClipboard = async (text, label) => {
+    // Ensure we have the text to copy
+    if (!text) {
+      toast.error(`No ${label.toLowerCase()} to copy`);
+      return;
+    }
+    
     // Try modern clipboard API first
     if (navigator.clipboard && window.isSecureContext) {
       try {

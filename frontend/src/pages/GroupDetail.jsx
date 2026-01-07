@@ -246,27 +246,42 @@ const GroupDetail = () => {
     }
   };
 
-  const copyToClipboard = async (text, label) => {
+  const copyToClipboard = (text, label) => {
+    // Create a temporary textarea element
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    
+    // Make it invisible but still part of the document
+    textArea.style.position = "fixed";
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.width = "2em";
+    textArea.style.height = "2em";
+    textArea.style.padding = "0";
+    textArea.style.border = "none";
+    textArea.style.outline = "none";
+    textArea.style.boxShadow = "none";
+    textArea.style.background = "transparent";
+    textArea.style.opacity = "0";
+    
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
+      const successful = document.execCommand("copy");
+      if (successful) {
         toast.success(`${label} copied!`);
       } else {
-        // Fallback for older browsers or non-HTTPS
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        textArea.style.position = "fixed";
-        textArea.style.left = "-999999px";
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textArea);
-        toast.success(`${label} copied!`);
+        // Show the text in a prompt as last resort
+        window.prompt(`Copy this ${label.toLowerCase()}:`, text);
       }
     } catch (err) {
-      console.error("Copy failed:", err);
-      toast.error("Failed to copy. Please copy manually.");
+      // Show the text in a prompt as last resort
+      window.prompt(`Copy this ${label.toLowerCase()}:`, text);
     }
+    
+    document.body.removeChild(textArea);
   };
 
   const handleSendChat = async (e) => {

@@ -531,20 +531,19 @@ const GroupDetail = () => {
                         <div className="col-span-3 text-sm text-muted-foreground">
                           {member.email || "-"}
                         </div>
-                        <div className="col-span-3">
+                        <div className="col-span-3 flex items-center">
                           <code className="px-2 py-1 rounded bg-muted text-sm">
                             {showPasscodes ? member.passcode : "••••••••"}
                           </code>
-                          {showPasscodes && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="ml-1 h-6 w-6"
-                              onClick={() => copyToClipboard(member.passcode, "Passcode")}
-                            >
-                              <Copy className="w-3 h-3" />
-                            </Button>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="ml-1 h-6 w-6"
+                            onClick={() => copyToClipboard(member.passcode, "Passcode")}
+                            title="Copy passcode"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
                         </div>
                         <div className="col-span-1">
                           <Badge 

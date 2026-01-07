@@ -235,6 +235,44 @@ class AuditLogResponse(BaseModel):
     details: str
     created_at: str
 
+# ============ GEOBLOCKING MODELS ============
+
+class GeoblockingSettings(BaseModel):
+    enabled: bool = False
+    allowed_countries: List[str] = ["US"]
+    block_message: str = "Access to this site is restricted in your region."
+
+class GeoblockingSettingsUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    allowed_countries: Optional[List[str]] = None
+    block_message: Optional[str] = None
+
+class IPWhitelistCreate(BaseModel):
+    ip_address: str
+    description: Optional[str] = ""
+
+class IPWhitelistResponse(BaseModel):
+    id: str
+    ip_address: str
+    description: str
+    added_by: str
+    created_at: str
+
+class IPLogResponse(BaseModel):
+    id: str
+    ip_address: str
+    country_code: Optional[str]
+    country_name: Optional[str]
+    city: Optional[str]
+    region: Optional[str]
+    is_blocked: bool
+    is_whitelisted: bool
+    user_agent: Optional[str]
+    path: str
+    visit_count: int
+    first_visit: str
+    last_visit: str
+
 # ============ AUTH HELPERS ============
 
 def hash_password(password: str) -> str:

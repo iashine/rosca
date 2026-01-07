@@ -1407,6 +1407,274 @@ async def get_stats(current_user: dict = Depends(get_current_user)):
         "completed_cycles": completed_sessions
     }
 
+# ============ GEOBLOCKING ENDPOINTS ============
+
+async def get_ip_geolocation(ip_address: str) -> dict:
+    """Get geolocation data for an IP address using ip-api.com (free service)"""
+    try:
+        # Skip private/local IPs
+        if ip_address in ["127.0.0.1", "localhost", "::1"] or ip_address.startswith("192.168.") or ip_address.startswith("10."):
+            return {
+                "country_code": "US",
+                "country_name": "United States (Local)",
+                "city": "Local",
+                "region": "Local"
+            }
+        
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"http://ip-api.com/json/{ip_address}")
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "success":
+                    return {
+                        "country_code": data.get("countryCode", ""),
+                        "country_name": data.get("country", ""),
+                        "city": data.get("city", ""),
+                        "region": data.get("regionName", "")
+                    }
+    except Exception as e:
+        logger.error(f"Failed to get geolocation for {ip_address}: {e}")
+    
+    return {
+        "country_code": "UNKNOWN",
+        "country_name": "Unknown",
+        "city": "",
+        "region": ""
+    }
+
+async def log_ip_visit(ip_address: str, user_agent: str, path: str, geo_data: dict, is_blocked: bool, is_whitelisted: bool):
+    """Log IP visit to database"""
+    try:
+        existing = await db.ip_logs.find_one({"ip_address": ip_address}, {"_id": 0})
+        
+        if existing:
+            # Update existing record
+            await db.ip_logs.update_one(
+                {"ip_address": ip_address},
+                {
+                    "$set": {
+                        "last_visit": datetime.now(timezone.utc).isoformat(),
+                        "is_blocked": is_blocked,
+                        "is_whitelisted": is_whitelisted,
+                        "user_agent": user_agent,
+                        "path": path
+                    },
+                    "$inc": {"visit_count": 1}
+                }
+            )
+        else:
+            # Create new record
+            await db.ip_logs.insert_one({
+                "id": str(uuid.uuid4()),
+                "ip_address": ip_address,
+                "country_code": geo_data.get("country_code"),
+                "country_name": geo_data.get("country_name"),
+                "city": geo_data.get("city"),
+                "region": geo_data.get("region"),
+                "is_blocked": is_blocked,
+                "is_whitelisted": is_whitelisted,
+                "user_agent": user_agent,
+                "path": path,
+                "visit_count": 1,
+                "first_visit": datetime.now(timezone.utc).isoformat(),
+                "last_visit": datetime.now(timezone.utc).isoformat()
+            })
+    except Exception as e:
+        logger.error(f"Failed to log IP visit: {e}")
+
+@api_router.get("/admin/geoblocking")
+async def get_geoblocking_settings(current_user: dict = Depends(require_role(ROLE_SUPERADMIN))):
+    """Get geoblocking settings (superadmin only)"""
+    settings = await db.geoblocking_settings.find_one({}, {"_id": 0})
+    if not settings:
+        # Return defaults
+        return GeoblockingSettings()
+    
+    return GeoblockingSettings(
+        enabled=settings.get("enabled", False),
+        allowed_countries=settings.get("allowed_countries", ["US"]),
+        block_message=settings.get("block_message", "Access to this site is restricted in your region.")
+    )
+
+@api_router.put("/admin/geoblocking")
+async def update_geoblocking_settings(data: GeoblockingSettingsUpdate, current_user: dict = Depends(require_role(ROLE_SUPERADMIN))):
+    """Update geoblocking settings (superadmin only)"""
+    update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    
+    if data.enabled is not None:
+        update_data["enabled"] = data.enabled
+    if data.allowed_countries is not None:
+        update_data["allowed_countries"] = data.allowed_countries
+    if data.block_message is not None:
+        update_data["block_message"] = data.block_message
+    
+    await db.geoblocking_settings.update_one(
+        {},
+        {"$set": update_data},
+        upsert=True
+    )
+    
+    await log_audit(current_user["id"], current_user["name"], "UPDATE_GEOBLOCKING", "settings", "geoblocking", 
+                   f"Geoblocking {'enabled' if data.enabled else 'disabled' if data.enabled is not None else 'updated'}")
+    
+    settings = await db.geoblocking_settings.find_one({}, {"_id": 0})
+    return GeoblockingSettings(
+        enabled=settings.get("enabled", False),
+        allowed_countries=settings.get("allowed_countries", ["US"]),
+        block_message=settings.get("block_message", "Access to this site is restricted in your region.")
+    )
+
+@api_router.get("/admin/ip-logs", response_model=List[IPLogResponse])
+async def get_ip_logs(
+    limit: int = 100, 
+    skip: int = 0,
+    country_filter: Optional[str] = None,
+    blocked_only: bool = False,
+    current_user: dict = Depends(require_role(ROLE_SUPERADMIN))
+):
+    """Get IP visit logs (superadmin only)"""
+    query = {}
+    if country_filter:
+        query["country_code"] = country_filter
+    if blocked_only:
+        query["is_blocked"] = True
+    
+    logs = await db.ip_logs.find(query, {"_id": 0}).sort("last_visit", -1).skip(skip).limit(limit).to_list(limit)
+    
+    return [IPLogResponse(
+        id=log["id"],
+        ip_address=log["ip_address"],
+        country_code=log.get("country_code"),
+        country_name=log.get("country_name"),
+        city=log.get("city"),
+        region=log.get("region"),
+        is_blocked=log.get("is_blocked", False),
+        is_whitelisted=log.get("is_whitelisted", False),
+        user_agent=log.get("user_agent"),
+        path=log.get("path", ""),
+        visit_count=log.get("visit_count", 1),
+        first_visit=log.get("first_visit", ""),
+        last_visit=log.get("last_visit", "")
+    ) for log in logs]
+
+@api_router.get("/admin/ip-logs/stats")
+async def get_ip_logs_stats(current_user: dict = Depends(require_role(ROLE_SUPERADMIN))):
+    """Get IP logs statistics (superadmin only)"""
+    total_ips = await db.ip_logs.count_documents({})
+    blocked_ips = await db.ip_logs.count_documents({"is_blocked": True})
+    whitelisted_ips = await db.ip_whitelist.count_documents({})
+    
+    # Get country distribution
+    pipeline = [
+        {"$group": {"_id": "$country_code", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10}
+    ]
+    country_stats = await db.ip_logs.aggregate(pipeline).to_list(10)
+    
+    return {
+        "total_unique_ips": total_ips,
+        "blocked_ips": blocked_ips,
+        "whitelisted_ips": whitelisted_ips,
+        "top_countries": [{"country": c["_id"], "count": c["count"]} for c in country_stats]
+    }
+
+@api_router.get("/admin/ip-whitelist", response_model=List[IPWhitelistResponse])
+async def get_ip_whitelist(current_user: dict = Depends(require_role(ROLE_SUPERADMIN))):
+    """Get IP whitelist (superadmin only)"""
+    whitelist = await db.ip_whitelist.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    
+    return [IPWhitelistResponse(
+        id=w["id"],
+        ip_address=w["ip_address"],
+        description=w.get("description", ""),
+        added_by=w.get("added_by", ""),
+        created_at=w["created_at"]
+    ) for w in whitelist]
+
+@api_router.post("/admin/ip-whitelist", response_model=IPWhitelistResponse)
+async def add_ip_to_whitelist(data: IPWhitelistCreate, current_user: dict = Depends(require_role(ROLE_SUPERADMIN))):
+    """Add IP to whitelist (superadmin only)"""
+    # Check if already whitelisted
+    existing = await db.ip_whitelist.find_one({"ip_address": data.ip_address})
+    if existing:
+        raise HTTPException(status_code=400, detail="IP already whitelisted")
+    
+    whitelist_id = str(uuid.uuid4())
+    entry = {
+        "id": whitelist_id,
+        "ip_address": data.ip_address,
+        "description": data.description or "",
+        "added_by": current_user["name"],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.ip_whitelist.insert_one(entry)
+    
+    # Update IP log if exists
+    await db.ip_logs.update_one(
+        {"ip_address": data.ip_address},
+        {"$set": {"is_whitelisted": True, "is_blocked": False}}
+    )
+    
+    await log_audit(current_user["id"], current_user["name"], "WHITELIST_IP", "ip_whitelist", whitelist_id, 
+                   f"Whitelisted IP: {data.ip_address}")
+    
+    return IPWhitelistResponse(**entry)
+
+@api_router.delete("/admin/ip-whitelist/{ip_address}")
+async def remove_ip_from_whitelist(ip_address: str, current_user: dict = Depends(require_role(ROLE_SUPERADMIN))):
+    """Remove IP from whitelist (superadmin only)"""
+    result = await db.ip_whitelist.delete_one({"ip_address": ip_address})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="IP not found in whitelist")
+    
+    # Update IP log if exists
+    await db.ip_logs.update_one(
+        {"ip_address": ip_address},
+        {"$set": {"is_whitelisted": False}}
+    )
+    
+    await log_audit(current_user["id"], current_user["name"], "REMOVE_WHITELIST_IP", "ip_whitelist", ip_address, 
+                   f"Removed IP from whitelist: {ip_address}")
+    
+    return {"message": f"IP {ip_address} removed from whitelist"}
+
+@api_router.get("/geoblocking/check")
+async def check_geoblocking_status(request: Request):
+    """Public endpoint to check if current IP is blocked"""
+    # Get client IP
+    client_ip = request.headers.get("X-Forwarded-For", request.headers.get("X-Real-IP", request.client.host))
+    if client_ip and "," in client_ip:
+        client_ip = client_ip.split(",")[0].strip()
+    
+    # Get settings
+    settings = await db.geoblocking_settings.find_one({}, {"_id": 0})
+    if not settings or not settings.get("enabled", False):
+        return {"blocked": False, "reason": "Geoblocking disabled"}
+    
+    # Check whitelist
+    whitelisted = await db.ip_whitelist.find_one({"ip_address": client_ip})
+    if whitelisted:
+        return {"blocked": False, "reason": "IP whitelisted", "ip": client_ip}
+    
+    # Get geolocation
+    geo_data = await get_ip_geolocation(client_ip)
+    country_code = geo_data.get("country_code", "UNKNOWN")
+    
+    allowed_countries = settings.get("allowed_countries", ["US"])
+    is_blocked = country_code not in allowed_countries and country_code != "UNKNOWN"
+    
+    return {
+        "blocked": is_blocked,
+        "ip": client_ip,
+        "country_code": country_code,
+        "country_name": geo_data.get("country_name"),
+        "allowed_countries": allowed_countries,
+        "message": settings.get("block_message") if is_blocked else None
+    }
+
 # Root endpoint
 @api_router.get("/")
 async def root():

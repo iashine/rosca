@@ -5,196 +5,109 @@ Build a ROSCA (Rotating Savings and Credit Association) Application with:
 - User authentication (email/password JWT)
 - Group management (CRUD operations)
 - Member management within groups
-- Spinning wheel for random winner selection with cryptographic randomness
+- Spinning wheel for random winner selection
 - Session recording and history
-- Theme customization (wheel colors)
+- Theme customization
 - Audit logging
 - Dashboard with statistics
 - Landing page and secure moderator sign-up flow
 - RBAC for superadmin and moderators
 - Password reset and forgot password features
 - CMS section for content management
-- **Geoblocking with IP whitelisting**
+- Geoblocking with IP whitelisting
+- **Member Access Portal with passcodes, chat, and online presence**
 
 ## User Personas
 1. **Superadmin** - Full system access, user management, CMS control, geoblocking management
 2. **Moderator** - Creates and manages ROSCA groups, adds/removes members, conducts spin sessions
-3. **Group Member** - Participates in savings circles (future: can view their status)
-
-## Core Requirements
-- JWT-based authentication (email/password)
-- Three roles: Superadmin, Moderator, and Member
-- Colorful spinning wheel with sound effects
-- Dark/light mode toggle
-- Professional blue color scheme
-- Cryptographically secure random selection (Web Crypto API)
-- Session recording with replay functionality
-- Wheel theme customization
-- Email verification for registration (AgentMail)
-- Password reset via email
-- Geoblocking with country restrictions and IP whitelisting
+3. **Group Member** - Accesses group via passcode, views spin results, chats with other members
 
 ## Architecture
 - **Backend**: FastAPI (Python) with MongoDB
 - **Frontend**: React with Tailwind CSS, shadcn/ui components
-- **Database**: MongoDB (collections: users, groups, members, sessions, spin_results, audit_logs, theme_preferences, pending_registrations, password_resets, math_challenges, cms_content, geoblocking_settings, ip_logs, ip_whitelist)
-- **Authentication**: JWT tokens with bcrypt password hashing
-- **Email Service**: AgentMail API for transactional emails
-- **Geolocation**: ip-api.com (free service) for IP country detection
+- **Database**: MongoDB
+- **Authentication**: JWT tokens (separate for moderators and members)
+- **Email Service**: AgentMail API
+- **Geolocation**: ip-api.com
 
 ## What's Been Implemented
 
-### December 29, 2025 - MVP Release
-- User registration & login with JWT
-- Group CRUD operations
-- Member management (add/remove)
-- Session management (start/end)
-- Spin result recording with Canvas API wheel
-- Theme preferences storage
-- Audit logging
-- Statistics endpoint
-- ROSCA Cycle logic (each member selected once per cycle)
-- Auto-selection of last member
-- Animated session replay
-- Winner display delay (10 seconds)
-
-### January 6, 2026 - Landing Page & Security Update
-- Public Landing Page (`/landing`) with CMS-driven content
-- 3-Step Secure Registration Flow (details → math captcha → email verification)
-- RBAC System (superadmin, moderator, member roles)
-- Password Reset/Forgot Password flow
-- Admin Dashboard (`/admin`) with User Management and CMS
-
-### January 7, 2026 - Geoblocking Feature
-- **Geoblocking Settings** - Enable/disable, configure allowed countries (default: US)
-- **IP Tracking** - All visitor IPs logged with country, city, region, visit count
-- **IP Whitelisting** - Allow specific IPs to bypass geoblocking
-- **Restricted Access Page** (`/restricted`) - Shown to blocked visitors
-- **Admin Dashboard Geoblocking Tab** - Full management UI with stats
+### January 7, 2026 - Member Access & Collaboration
+- **Private Shareable Links** - Each group gets unique access link
+- **Member Passcodes** - Auto-generated easy-to-remember passcodes (e.g., "happy-star-42")
+- **Email Invitations** - Sent automatically when member added with email
+- **Passcode Management** - Moderator can update/regenerate passcodes (email notification sent)
+- **Member Portal** - Dedicated page for members to:
+  - View group info and contribution amount
+  - See spin cycle status and recent winners
+  - Chat with other members and moderator
+  - See who's online (real-time presence with green indicators)
+- **Moderator Chat View** - See and participate in group chat
 
 ## API Endpoints
 
-### Authentication
-- POST /api/auth/math-challenge - Get math captcha
-- POST /api/auth/register/init - Start registration (sends verification email)
-- POST /api/auth/register/verify - Complete registration with code
-- POST /api/auth/register - Legacy direct registration
-- POST /api/auth/login - User login
-- GET /api/auth/me - Get current user
-- POST /api/auth/forgot-password - Request password reset
-- POST /api/auth/reset-password - Reset password with code
-- POST /api/auth/change-password - Change password (authenticated)
+### Member Access (NEW)
+- GET /api/groups/{id}/members-access - Get members with passcodes (moderator)
+- PUT /api/groups/{id}/members/{id}/passcode - Update member passcode
+- POST /api/groups/{id}/members/{id}/resend-invite - Resend invitation email
+- GET /api/groups/{id}/access-link - Get group shareable link
+- GET /api/group-access/{code}/info - Get group info by access code (public)
+- POST /api/group-access/{code}/login - Member login with passcode (public)
+- GET /api/member-portal/group - Get group data for member
+- POST /api/member-portal/heartbeat - Update online status
+- GET /api/member-portal/chat - Get chat messages
+- POST /api/member-portal/chat - Send chat message
+- GET /api/groups/{id}/chat - Get chat (moderator)
+- POST /api/groups/{id}/chat - Send chat as moderator
 
-### Admin (Superadmin only)
-- GET /api/admin/users - List all users
-- PUT /api/admin/users/{id}/role - Update user role
-- DELETE /api/admin/users/{id} - Delete user
-
-### CMS
-- GET /api/cms/content - Get all content (public)
-- GET /api/cms/content/{key} - Get content by key (public)
-- POST /api/cms/content - Create content (superadmin)
-- PUT /api/cms/content/{key} - Update content (superadmin)
-- DELETE /api/cms/content/{key} - Delete content (superadmin)
-
-### Geoblocking (NEW)
-- GET /api/geoblocking/check - Check if current IP is blocked (public)
-- GET /api/admin/geoblocking - Get geoblocking settings (superadmin)
-- PUT /api/admin/geoblocking - Update geoblocking settings (superadmin)
-- GET /api/admin/ip-logs - Get visitor IP logs (superadmin)
-- GET /api/admin/ip-logs/stats - Get IP statistics (superadmin)
-- GET /api/admin/ip-whitelist - Get whitelisted IPs (superadmin)
-- POST /api/admin/ip-whitelist - Add IP to whitelist (superadmin)
-- DELETE /api/admin/ip-whitelist/{ip} - Remove IP from whitelist (superadmin)
-
-### Groups & Sessions
-- GET/POST /api/groups
-- GET/PUT/DELETE /api/groups/{id}
-- GET/POST/DELETE /api/groups/{id}/members
-- GET/POST /api/sessions
-- GET /api/sessions/{id}
-- POST /api/spins
-- GET /api/sessions/{id}/spins
-- GET/PUT /api/theme
-- GET /api/audit-logs
-- GET /api/stats
+## Database Collections
+- users, groups, members, sessions, spin_results
+- audit_logs, theme_preferences
+- pending_registrations, password_resets, math_challenges
+- cms_content
+- geoblocking_settings, ip_logs, ip_whitelist
+- **chat_messages** (NEW)
 
 ## Test Accounts
 - **Superadmin**: admin@rosca.com / admin123
+- **Test Group Access Code**: b-fp8WWcA2Q
+- **Test Member Passcode**: keen-moon-13
 
-## Prioritized Backlog
-
-### P0 (Critical) - DONE ✅
-- [x] User authentication
-- [x] Group management
-- [x] Member management
-- [x] Spinning wheel with random selection
-- [x] Session recording
-- [x] Landing page
-- [x] Secure registration with email verification
-- [x] RBAC (superadmin/moderator)
-- [x] Password reset/forgot password
-- [x] Admin dashboard with CMS
-- [x] Geoblocking with IP whitelisting
-
-### P1 (Important) - Pending
-- [ ] Sound effects for spinning wheel
-- [x] Theme customization
-- [x] Audit logs
-- [x] Session replay
-
-### P2 (Nice to Have)
-- [ ] Export session data (CSV/PDF)
-- [ ] Group deletion UI improvements
-- [ ] Reset/abandon in-progress cycle
-- [ ] Member self-service portal
-- [ ] Email notifications for winners
-- [ ] Mobile app
-
-## Third-Party Integrations
-- **AgentMail** - Email verification and password reset
-- **ip-api.com** - IP geolocation for geoblocking
+## Member Access Flow
+1. Moderator creates group and adds members
+2. Each member gets unique passcode (auto-generated)
+3. If email provided, invitation sent with passcode and link
+4. Member visits link, enters passcode, accesses portal
+5. Member can view spins, chat, see online members
+6. Moderator can update passcode (email notification sent)
 
 ## Files Structure
 ```
 /app/
 ├── backend/
-│   ├── server.py          # All API endpoints
-│   ├── .env               # Environment variables
+│   ├── server.py
 │   └── tests/
-│       ├── test_rosca_new_features.py
-│       └── test_geoblocking.py
+│       ├── test_member_access.py
+│       └── ...
 ├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── Layout.jsx
-│   │   │   └── SpinWheel.jsx
-│   │   ├── pages/
-│   │   │   ├── Landing.jsx      # CMS-driven
-│   │   │   ├── Login.jsx
-│   │   │   ├── Register.jsx     # 3-step
-│   │   │   ├── ForgotPassword.jsx
-│   │   │   ├── AdminDashboard.jsx  # Users, CMS, Geoblocking tabs
-│   │   │   ├── RestrictedAccess.jsx  # For blocked visitors
-│   │   │   ├── Dashboard.jsx
-│   │   │   ├── Groups.jsx
-│   │   │   ├── GroupDetail.jsx
-│   │   │   ├── SpinSession.jsx
-│   │   │   ├── SessionHistory.jsx
-│   │   │   ├── SessionReplay.jsx
-│   │   │   ├── ThemeSettings.jsx
-│   │   │   └── AuditLogs.jsx
-│   │   └── App.js
-│   └── .env
-├── memory/
-│   └── PRD.md
+│   ├── src/pages/
+│   │   ├── GroupDetail.jsx    # Enhanced with Member Access tab
+│   │   ├── GroupAccess.jsx    # Member login with passcode
+│   │   ├── MemberPortal.jsx   # Member view with chat/online
+│   │   └── ...
+│   └── App.js
 └── test_reports/
-    ├── iteration_2.json
-    └── iteration_3.json
+    └── iteration_4.json
 ```
 
 ## Next Action Items
 1. Add sound effects to spinning wheel
-2. Implement group deletion UI improvements
-3. Add export functionality (CSV/PDF) for spin history
-4. Consider adding reset/abandon cycle option
+2. Add notification when new spin result available
+3. Add push notifications for members
+4. Export spin history to CSV/PDF
+
+## Future/Backlog
+- Mobile app
+- Payment tracking integration
+- Member self-registration option
+- Video call integration for live spin events

@@ -237,7 +237,7 @@ const MemberSessionReplay = () => {
     animationRef.current = requestAnimationFrame(animate);
   }, [spinResults, wheelRotation, drawWheel]);
 
-  // Handle replay sequence
+  // Handle replay sequence - only trigger when isReplaying is true
   useEffect(() => {
     if (isReplaying && !isWheelSpinning && replayIndex < spinResults.length) {
       if (replayIndex === -1) {
@@ -251,7 +251,7 @@ const MemberSessionReplay = () => {
     }
   }, [isReplaying, replayIndex, isWheelSpinning, spinResults.length, animateToSpin]);
 
-  // Move to next spin after current animation completes
+  // Move to next spin after current animation completes - only when in replay mode
   useEffect(() => {
     if (isReplaying && !isWheelSpinning && currentWinner && replayIndex >= 0) {
       if (replayIndex < spinResults.length - 1) {
@@ -301,11 +301,29 @@ const MemberSessionReplay = () => {
     }
   };
 
+  // Skip to a specific spin - does NOT start auto-replay mode
   const skipToSpin = (index) => {
-    pauseReplay();
-    setWheelRotation(0); // Reset rotation before skipping
+    // Stop any ongoing replay/animation
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+    setIsReplaying(false);  // Important: disable auto-replay mode
+    setIsWheelSpinning(false);
+    setCurrentWinner(null);
+    setWheelRotation(0);
+    
+    // Set the index and animate to that specific spin
     setReplayIndex(index);
-    animateToSpin(index);
+    
+    // Directly animate without triggering useEffect loop
+    const spin = spinResults[index];
+    if (spin && spin.members_at_spin) {
+      setCurrentMembers(spin.members_at_spin);
+      // Small delay to ensure state is updated before animation
+      setTimeout(() => {
+        animateToSpin(index);
+      }, 50);
+    }
   };
 
   if (loading) {

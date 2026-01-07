@@ -758,6 +758,107 @@ const MemberPortal = () => {
           </div>
         </div>
       </main>
+
+      {/* Replay Modal */}
+      <Dialog open={!!replayingSpin} onOpenChange={() => canClose && closeReplay()}>
+        <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-yellow-500" />
+                Spin #{replayingSpin?.spin_number} Replay
+              </span>
+              {countdown > 0 && (
+                <Badge variant="outline" className="text-xs border-slate-600 text-slate-400">
+                  Closes in {countdown}s
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center py-4">
+            {/* Pointer */}
+            <div className="mb-2">
+              <svg width="30" height="30" viewBox="0 0 40 40">
+                <polygon points="20,35 10,10 30,10" fill="#3b82f6" stroke="#1e293b" strokeWidth="2"/>
+              </svg>
+            </div>
+
+            {/* Wheel */}
+            <div className="relative">
+              <canvas
+                ref={canvasRef}
+                width={280}
+                height={280}
+                className="rounded-full"
+              />
+              
+              {isWheelSpinning && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-sm text-slate-400 animate-pulse">
+                    Spinning...
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Winner Display */}
+            {showWinner && replayingSpin && (
+              <div className="mt-6 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="mb-2 flex items-center justify-center gap-2">
+                  <Trophy className="w-6 h-6 text-yellow-500" />
+                  <span className="text-sm text-slate-400 uppercase tracking-wider">Winner</span>
+                </div>
+                <p className="text-2xl font-bold text-white">
+                  {replayingSpin.winner_name}
+                </p>
+                {replayingSpin.is_auto_selected && (
+                  <Badge className="mt-2 bg-violet-500/20 text-violet-400 border-violet-500/30">
+                    <Sparkles className="w-3 h-3 mr-1" />
+                    Auto-Selected (Last Member)
+                  </Badge>
+                )}
+                <p className="text-xs text-slate-500 mt-2">
+                  {formatCST(replayingSpin.created_at, "MMM d, yyyy 'at' h:mm:ss a")} CST
+                </p>
+              </div>
+            )}
+
+            {/* Members on Wheel */}
+            {replayingSpin?.members_at_spin && replayingSpin.members_at_spin.length > 0 && (
+              <div className="mt-4 flex flex-wrap justify-center gap-1">
+                {replayingSpin.members_at_spin.map((member) => (
+                  <Badge 
+                    key={member.id} 
+                    variant="outline"
+                    className={`text-xs ${
+                      member.id === replayingSpin.winner_member_id && showWinner
+                        ? "bg-green-500/20 text-green-400 border-green-500/30"
+                        : "border-slate-600 text-slate-400"
+                    }`}
+                  >
+                    {member.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Close Button */}
+          {canClose && (
+            <div className="flex justify-center">
+              <Button 
+                onClick={closeReplay}
+                variant="outline"
+                className="border-slate-600 text-slate-300 hover:bg-slate-800"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Close
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -1481,6 +1481,7 @@ async def get_member_group_data(request: Request):
         } if session else None,
         "recent_spins": [{
             "id": s["id"],
+            "session_id": s.get("session_id"),
             "winner_name": s["winner_name"],
             "spin_number": s.get("spin_number", 0),
             "created_at": s["created_at"]

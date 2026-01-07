@@ -1485,6 +1485,7 @@ async def get_member_group_data(request: Request):
             "winner_name": s["winner_name"],
             "winner_member_id": s.get("winner_member_id"),
             "spin_number": s.get("spin_number", 0),
+            "spin_angle": s.get("spin_angle", 0),
             "members_at_spin": s.get("members_at_spin", []),
             "is_auto_selected": s.get("is_auto_selected", False),
             "created_at": s["created_at"]

@@ -101,3 +101,78 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: Fix clipboard bug ("Failed to copy" error) and add auto-refresh/replay functionality to Member Portal
+
+backend:
+  - task: "Member Portal API returns session_id in recent_spins"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added session_id field to recent_spins response in get_member_group_data endpoint (line 1483)"
+
+frontend:
+  - task: "Clipboard copy functionality with fallback"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/GroupDetail.jsx"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: false
+          agent: "user"
+          comment: "User reported 'Failed to copy. Please copy manually' error on all clipboard icons"
+        - working: "NA"
+          agent: "main"
+          comment: "Enhanced copyToClipboard function with: 1) Modern navigator.clipboard API first, 2) Fallback with textarea + execCommand, 3) iOS support via setSelectionRange, 4) Final fallback to window.prompt"
+
+  - task: "Member Portal auto-refresh for new spins"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/MemberPortal.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Auto-refresh already implemented with 3-second polling via setInterval. Shows toast notification when new spin is detected."
+
+  - task: "Member Portal Replay button for completed spins"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/MemberPortal.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Replay button already implemented, links to /sessions/{session_id}/replay. Backend fix now provides session_id."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "Member Portal API returns session_id in recent_spins"
+    - "Clipboard copy functionality with fallback"
+    - "Member Portal auto-refresh for new spins"
+    - "Member Portal Replay button for completed spins"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "Fixed two issues: 1) Added session_id to recent_spins in backend member portal API, 2) Enhanced clipboard copy function with modern API + fallback mechanisms. Please test: a) Login as admin@rosca.com/admin123, b) Go to a group, c) Test copy buttons for access link and passcodes, d) Create a test member with passcode, login via member portal, verify recent spins show Replay button and auto-refresh works."

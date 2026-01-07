@@ -278,6 +278,7 @@ const SessionReplay = () => {
 
   const skipToSpin = (index) => {
     pauseReplay();
+    setWheelRotation(0); // Reset rotation before skipping
     setReplayIndex(index);
     animateToSpin(index);
   };

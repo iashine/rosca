@@ -1,0 +1,416 @@
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { ScrollArea } from "../components/ui/scroll-area";
+import { Badge } from "../components/ui/badge";
+import { toast } from "sonner";
+import { 
+  Loader2, 
+  Send, 
+  Users, 
+  Trophy, 
+  MessageCircle, 
+  Clock,
+  LogOut,
+  RefreshCw,
+  Circle
+} from "lucide-react";
+import { format } from "date-fns";
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+
+const MemberPortal = () => {
+  const { groupId } = useParams();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [groupData, setGroupData] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [onlineMembers, setOnlineMembers] = useState([]);
+  const chatEndRef = useRef(null);
+  const pollIntervalRef = useRef(null);
+
+  const memberToken = localStorage.getItem("memberAccessToken");
+  const memberInfo = JSON.parse(localStorage.getItem("memberInfo") || "{}");
+
+  const apiClient = axios.create({
+    baseURL: BACKEND_URL,
+    headers: {
+      "Authorization": `Bearer ${memberToken}`
+    }
+  });
+
+  const fetchGroupData = useCallback(async () => {
+    try {
+      const res = await apiClient.get("/api/member-portal/group");
+      setGroupData(res.data);
+      setOnlineMembers(res.data.members || []);
+    } catch (error) {
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+        handleLogout();
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchMessages = useCallback(async () => {
+    try {
+      const res = await apiClient.get("/api/member-portal/chat");
+      setMessages(res.data);
+    } catch (error) {
+      console.error("Failed to fetch messages");
+    }
+  }, []);
+
+  const sendHeartbeat = useCallback(async () => {
+    try {
+      const res = await apiClient.post("/api/member-portal/heartbeat");
+      setOnlineMembers(res.data.online_members || []);
+    } catch (error) {
+      console.error("Heartbeat failed");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!memberToken) {
+      navigate("/");
+      return;
+    }
+
+    // Verify the group matches
+    if (memberInfo.group_id && memberInfo.group_id !== groupId) {
+      toast.error("Invalid group access");
+      navigate("/");
+      return;
+    }
+
+    fetchGroupData();
+    fetchMessages();
+
+    // Start polling for updates
+    pollIntervalRef.current = setInterval(() => {
+      sendHeartbeat();
+      fetchMessages();
+    }, 5000); // Every 5 seconds
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [memberToken, groupId, navigate, fetchGroupData, fetchMessages, sendHeartbeat]);
+
+  useEffect(() => {
+    // Scroll to bottom when messages change
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+
+    setSending(true);
+    try {
+      const res = await apiClient.post("/api/member-portal/chat", {
+        content: newMessage.trim()
+      });
+      setMessages(prev => [...prev, res.data]);
+      setNewMessage("");
+    } catch (error) {
+      toast.error("Failed to send message");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("memberAccessToken");
+    localStorage.removeItem("memberInfo");
+    navigate("/");
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
+  const currentMember = groupData?.current_member;
+  const group = groupData?.group;
+  const recentSpins = groupData?.recent_spins || [];
+  const session = groupData?.session;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-slate-900/80 backdrop-blur-lg border-b border-slate-700/50">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+              <span className="text-lg font-bold text-white">R</span>
+            </div>
+            <div>
+              <h1 className="font-bold text-white">{group?.name}</h1>
+              <p className="text-xs text-slate-400">Welcome, {currentMember?.name}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => { fetchGroupData(); fetchMessages(); }}
+              className="text-slate-400 hover:text-white"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleLogout}
+              className="text-slate-400 hover:text-red-400"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Spins & Info */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Session Status */}
+            <Card className="bg-slate-800/50 border-slate-700/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2 text-white">
+                  <Trophy className="w-5 h-5 text-yellow-500" />
+                  {session ? "Active Spin Cycle" : "No Active Cycle"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {session ? (
+                  <div className="flex items-center gap-4">
+                    <Badge className="bg-green-500/10 text-green-400 border-green-500/20">
+                      In Progress
+                    </Badge>
+                    <span className="text-sm text-slate-400">
+                      Started {format(new Date(session.started_at), "MMM d, yyyy h:mm a")}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-slate-400">
+                    Waiting for the moderator to start a new spin cycle.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Recent Spins */}
+            <Card className="bg-slate-800/50 border-slate-700/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2 text-white">
+                  <Clock className="w-5 h-5 text-blue-400" />
+                  Recent Winners
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {recentSpins.length === 0 ? (
+                  <p className="text-slate-400 text-center py-4">
+                    No spins recorded yet.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {recentSpins.map((spin, index) => (
+                      <div 
+                        key={spin.id}
+                        className={`flex items-center justify-between p-3 rounded-lg ${
+                          index === 0 ? "bg-yellow-500/10 border border-yellow-500/20" : "bg-slate-700/30"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            index === 0 ? "bg-yellow-500 text-black" : "bg-slate-600 text-white"
+                          }`}>
+                            {index === 0 ? <Trophy className="w-4 h-4" /> : spin.spin_number}
+                          </div>
+                          <div>
+                            <p className={`font-medium ${index === 0 ? "text-yellow-400" : "text-white"}`}>
+                              {spin.winner_name}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              Spin #{spin.spin_number}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-xs text-slate-500">
+                          {format(new Date(spin.created_at), "MMM d, h:mm a")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Group Info */}
+            <Card className="bg-slate-800/50 border-slate-700/50">
+              <CardContent className="pt-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-4 rounded-lg bg-slate-700/30">
+                    <p className="text-2xl font-bold text-white">
+                      {group?.currency} {group?.contribution_amount?.toFixed(2)}
+                    </p>
+                    <p className="text-sm text-slate-400">Contribution</p>
+                  </div>
+                  <div className="text-center p-4 rounded-lg bg-slate-700/30">
+                    <p className="text-2xl font-bold text-white">
+                      {onlineMembers.length}
+                    </p>
+                    <p className="text-sm text-slate-400">Total Members</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right Column - Chat & Online Members */}
+          <div className="space-y-6">
+            {/* Online Members */}
+            <Card className="bg-slate-800/50 border-slate-700/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2 text-white">
+                  <Users className="w-5 h-5 text-green-400" />
+                  Members
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {onlineMembers.map((member) => (
+                    <div 
+                      key={member.member_id}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-700/30"
+                    >
+                      <div className="relative">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-medium">
+                          {member.member_name.charAt(0).toUpperCase()}
+                        </div>
+                        <Circle 
+                          className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 ${
+                            member.is_online 
+                              ? "text-green-500 fill-green-500" 
+                              : "text-slate-500 fill-slate-500"
+                          }`}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium truncate ${
+                          member.member_id === currentMember?.id ? "text-blue-400" : "text-white"
+                        }`}>
+                          {member.member_name}
+                          {member.member_id === currentMember?.id && " (You)"}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {member.is_online ? "Online" : "Offline"}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Chat */}
+            <Card className="bg-slate-800/50 border-slate-700/50 flex flex-col" style={{ height: "400px" }}>
+              <CardHeader className="pb-3 flex-shrink-0">
+                <CardTitle className="text-lg flex items-center gap-2 text-white">
+                  <MessageCircle className="w-5 h-5 text-blue-400" />
+                  Group Chat
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col overflow-hidden p-0">
+                <ScrollArea className="flex-1 px-4">
+                  <div className="space-y-3 py-2">
+                    {messages.length === 0 ? (
+                      <p className="text-center text-slate-500 text-sm py-4">
+                        No messages yet. Start the conversation!
+                      </p>
+                    ) : (
+                      messages.map((msg) => {
+                        const isOwnMessage = msg.member_id === currentMember?.id;
+                        return (
+                          <div 
+                            key={msg.id}
+                            className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}
+                          >
+                            <div className={`max-w-[80%] ${
+                              isOwnMessage 
+                                ? "bg-blue-600 text-white" 
+                                : "bg-slate-700 text-white"
+                            } rounded-lg px-3 py-2`}>
+                              {!isOwnMessage && (
+                                <p className="text-xs font-medium text-blue-300 mb-1">
+                                  {msg.member_name}
+                                </p>
+                              )}
+                              <p className="text-sm break-words">{msg.content}</p>
+                              <p className={`text-xs mt-1 ${
+                                isOwnMessage ? "text-blue-200" : "text-slate-400"
+                              }`}>
+                                {format(new Date(msg.created_at), "h:mm a")}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+                </ScrollArea>
+                
+                {/* Message Input */}
+                <form 
+                  onSubmit={handleSendMessage}
+                  className="flex-shrink-0 p-4 border-t border-slate-700/50"
+                >
+                  <div className="flex gap-2">
+                    <Input
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      placeholder="Type a message..."
+                      className="flex-1 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500"
+                      maxLength={500}
+                      data-testid="chat-input"
+                    />
+                    <Button 
+                      type="submit" 
+                      size="icon"
+                      disabled={sending || !newMessage.trim()}
+                      className="bg-blue-600 hover:bg-blue-700"
+                      data-testid="chat-send-btn"
+                    >
+                      {sending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default MemberPortal;

@@ -15,6 +15,7 @@ import {
   Play,
   Pause,
   RotateCcw,
+  FastForward,
   Users,
   Sparkles,
   Loader2
@@ -23,8 +24,6 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-
-// Default wheel colors - same as admin version
 const DEFAULT_WHEEL_COLORS = ["#3b82f6", "#6366f1", "#8b5cf6", "#0ea5e9", "#14b8a6", "#64748b"];
 
 const MemberSessionReplay = () => {
@@ -47,9 +46,7 @@ const MemberSessionReplay = () => {
 
   const apiClient = axios.create({
     baseURL: BACKEND_URL,
-    headers: {
-      "Authorization": `Bearer ${memberToken}`
-    }
+    headers: { "Authorization": `Bearer ${memberToken}` }
   });
 
   // Fetch session data
@@ -69,7 +66,6 @@ const MemberSessionReplay = () => {
         setSession(sessionRes.data);
         setSpinResults(spinsRes.data);
         
-        // Set initial members from first spin
         if (spinsRes.data.length > 0 && spinsRes.data[0].members_at_spin) {
           setCurrentMembers(spinsRes.data[0].members_at_spin);
         }
@@ -89,7 +85,7 @@ const MemberSessionReplay = () => {
     fetchSession();
   }, [sessionId, memberToken, navigate]);
 
-  // Draw the wheel - matching admin version exactly
+  // Draw the wheel - exact copy from admin
   const drawWheel = useCallback((members, rotation, highlightIndex = -1) => {
     const canvas = canvasRef.current;
     if (!canvas || members.length === 0) return;
@@ -138,7 +134,6 @@ const MemberSessionReplay = () => {
       ctx.restore();
     });
 
-    // Draw center circle
     ctx.beginPath();
     ctx.arc(centerX, centerY, 30, 0, 2 * Math.PI);
     ctx.fillStyle = "#1e293b";
@@ -154,14 +149,14 @@ const MemberSessionReplay = () => {
     ctx.fillText("SPIN", centerX, centerY);
   }, []);
 
-  // Initial wheel draw - only when not spinning
+  // Initial wheel draw
   useEffect(() => {
     if (currentMembers.length > 0 && !isWheelSpinning) {
       drawWheel(currentMembers, wheelRotation);
     }
   }, [currentMembers, drawWheel, isWheelSpinning, wheelRotation]);
 
-  // Animate wheel to a specific spin result - matching admin version exactly
+  // Animate wheel - exact copy from admin
   const animateToSpin = useCallback((spinIndex) => {
     if (spinIndex < 0 || spinIndex >= spinResults.length) return;
 
@@ -169,25 +164,17 @@ const MemberSessionReplay = () => {
     const members = spin.members_at_spin || [];
     
     if (members.length === 0) {
-      // Auto-selected (last member) - just show the result
       setCurrentWinner(spin);
       setIsWheelSpinning(false);
       return;
     }
 
-    // Update current members to what was on the wheel
     setCurrentMembers(members);
     
     if (spin.is_auto_selected) {
-      // Don't animate for auto-selected, just show
       setCurrentWinner(spin);
       drawWheel(members, 0, 0);
-      confetti({
-        particleCount: 80,
-        spread: 60,
-        origin: { y: 0.6 },
-        colors: DEFAULT_WHEEL_COLORS
-      });
+      confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 }, colors: DEFAULT_WHEEL_COLORS });
       return;
     }
 
@@ -195,11 +182,8 @@ const MemberSessionReplay = () => {
     setCurrentWinner(null);
 
     const targetAngle = spin.spin_angle;
-    const startRotation = 0; // Always start from 0 for consistent replay
     const duration = 4000;
     const startTime = Date.now();
-
-    // Calculate total rotation to end exactly at targetAngle
     const extraRotations = 3 * 360;
     const normalizedTarget = ((targetAngle % 360) + 360) % 360;
     const totalRotation = extraRotations + normalizedTarget;
@@ -207,16 +191,15 @@ const MemberSessionReplay = () => {
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
       const easeOut = 1 - Math.pow(1 - progress, 3);
       const currentRotation = totalRotation * easeOut;
+      
       setWheelRotation(currentRotation);
       drawWheel(members, currentRotation);
 
       if (progress < 1) {
         animationRef.current = requestAnimationFrame(animate);
       } else {
-        // Ensure we end exactly at the target angle
         setWheelRotation(normalizedTarget);
         drawWheel(members, normalizedTarget);
         setIsWheelSpinning(false);
@@ -225,25 +208,18 @@ const MemberSessionReplay = () => {
         const winnerIndex = members.findIndex(m => m.id === spin.winner_member_id);
         drawWheel(members, normalizedTarget, winnerIndex);
         
-        confetti({
-          particleCount: 80,
-          spread: 60,
-          origin: { y: 0.6 },
-          colors: DEFAULT_WHEEL_COLORS
-        });
+        confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 }, colors: DEFAULT_WHEEL_COLORS });
       }
     };
 
     animationRef.current = requestAnimationFrame(animate);
-  }, [spinResults, wheelRotation, drawWheel]);
+  }, [spinResults, drawWheel]);
 
-  // Handle replay sequence - only trigger when isReplaying is true
+  // Handle replay sequence - exact copy from admin
   useEffect(() => {
     if (isReplaying && !isWheelSpinning && replayIndex < spinResults.length) {
       if (replayIndex === -1) {
-        const timer = setTimeout(() => {
-          setReplayIndex(0);
-        }, 500);
+        const timer = setTimeout(() => setReplayIndex(0), 500);
         return () => clearTimeout(timer);
       } else {
         animateToSpin(replayIndex);
@@ -251,7 +227,7 @@ const MemberSessionReplay = () => {
     }
   }, [isReplaying, replayIndex, isWheelSpinning, spinResults.length, animateToSpin]);
 
-  // Move to next spin after current animation completes - only when in replay mode
+  // Move to next spin - exact copy from admin
   useEffect(() => {
     if (isReplaying && !isWheelSpinning && currentWinner && replayIndex >= 0) {
       if (replayIndex < spinResults.length - 1) {
@@ -267,16 +243,12 @@ const MemberSessionReplay = () => {
   }, [isReplaying, isWheelSpinning, currentWinner, replayIndex, spinResults.length]);
 
   const startReplay = () => {
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-    }
-    
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
     setWheelRotation(0);
     setReplayIndex(-1);
     setCurrentWinner(null);
     setIsReplaying(true);
     
-    // Reset to first spin's members and draw at rotation 0
     if (spinResults.length > 0 && spinResults[0].members_at_spin) {
       setCurrentMembers(spinResults[0].members_at_spin);
       drawWheel(spinResults[0].members_at_spin, 0);
@@ -285,9 +257,7 @@ const MemberSessionReplay = () => {
 
   const pauseReplay = () => {
     setIsReplaying(false);
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-    }
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
   };
 
   const resetReplay = () => {
@@ -301,100 +271,20 @@ const MemberSessionReplay = () => {
     }
   };
 
-  // Skip to a specific spin - does NOT start auto-replay mode
   const skipToSpin = (index) => {
-    console.log("skipToSpin called with index:", index);
-    
-    // Stop any ongoing replay/animation
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-    }
-    setIsReplaying(false);  // Important: disable auto-replay mode
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    setIsReplaying(false);
     setIsWheelSpinning(false);
     setCurrentWinner(null);
     setWheelRotation(0);
     
-    // Get the spin data
     const spin = spinResults[index];
-    if (!spin || !spin.members_at_spin) {
-      console.log("No spin data at index:", index);
-      return;
-    }
+    if (!spin || !spin.members_at_spin) return;
     
-    console.log("Setting replayIndex to:", index);
-    // Update members first
     setCurrentMembers(spin.members_at_spin);
     setReplayIndex(index);
     
-    // Animate after a brief delay to let state update
-    setTimeout(() => {
-      console.log("Timeout callback, animating index:", index);
-      // Re-fetch the spin to avoid stale closure
-      const targetSpin = spinResults[index];
-      if (!targetSpin) {
-        console.log("targetSpin not found at index:", index);
-        return;
-      }
-      
-      const members = targetSpin.members_at_spin || [];
-      if (members.length === 0) {
-        setCurrentWinner(targetSpin);
-        return;
-      }
-
-      if (targetSpin.is_auto_selected) {
-        setCurrentWinner(targetSpin);
-        drawWheel(members, 0, 0);
-        confetti({
-          particleCount: 80,
-          spread: 60,
-          origin: { y: 0.6 },
-          colors: DEFAULT_WHEEL_COLORS
-        });
-        return;
-      }
-
-      setIsWheelSpinning(true);
-      
-      const targetAngle = targetSpin.spin_angle;
-      const extraRotations = 3 * 360;
-      const normalizedTarget = ((targetAngle % 360) + 360) % 360;
-      const totalRotation = extraRotations + normalizedTarget;
-      const duration = 4000;
-      const startTime = Date.now();
-
-      const animate = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        const easeOut = 1 - Math.pow(1 - progress, 3);
-        const currentRotation = totalRotation * easeOut;
-        
-        setWheelRotation(currentRotation);
-        drawWheel(members, currentRotation);
-
-        if (progress < 1) {
-          animationRef.current = requestAnimationFrame(animate);
-        } else {
-          console.log("Animation complete for index:", index);
-          setWheelRotation(normalizedTarget);
-          drawWheel(members, normalizedTarget);
-          setIsWheelSpinning(false);
-          setCurrentWinner(targetSpin);
-          
-          const winnerIndex = members.findIndex(m => m.id === targetSpin.winner_member_id);
-          drawWheel(members, normalizedTarget, winnerIndex);
-          
-          confetti({
-            particleCount: 80,
-            spread: 60,
-            origin: { y: 0.6 },
-            colors: DEFAULT_WHEEL_COLORS
-          });
-        }
-      };
-
-      animationRef.current = requestAnimationFrame(animate);
-    }, 100);
+    setTimeout(() => animateToSpin(index), 100);
   };
 
   if (loading) {
@@ -419,8 +309,7 @@ const MemberSessionReplay = () => {
   }
 
   const totalMembers = spinResults.length > 0 && spinResults[0].members_at_spin 
-    ? spinResults[0].members_at_spin.length 
-    : 0;
+    ? spinResults[0].members_at_spin.length : 0;
   const progress = totalMembers > 0 ? (spinResults.length / totalMembers) * 100 : 0;
 
   return (
@@ -460,116 +349,64 @@ const MemberSessionReplay = () => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-white">Cycle Progress</span>
-              <span className="text-sm text-slate-400">
-                {spinResults.length} of {totalMembers} selections
-              </span>
+              <span className="text-sm text-slate-400">{spinResults.length} of {totalMembers} selections</span>
             </div>
             <Progress value={progress} className="h-2" />
           </CardContent>
         </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Wheel Replay Section */}
+          {/* Wheel Section */}
           <div className="lg:col-span-8">
             <Card className="bg-slate-800/50 border-slate-700/50">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between text-white">
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-yellow-500" />
-                    Cycle Replay
-                  </span>
+                  <span>Cycle Replay</span>
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={resetReplay}
-                      disabled={isWheelSpinning}
-                      className="border-slate-600 text-slate-300 hover:bg-slate-700"
-                    >
+                    <Button variant="outline" size="sm" onClick={resetReplay} disabled={isWheelSpinning}
+                      className="border-slate-600 text-slate-300 hover:bg-slate-700">
                       <RotateCcw className="w-4 h-4" />
                     </Button>
-                    <Button
-                      onClick={isReplaying ? pauseReplay : startReplay}
+                    <Button onClick={isReplaying ? pauseReplay : startReplay}
                       disabled={spinResults.length === 0 || isWheelSpinning}
-                      className="bg-blue-600 hover:bg-blue-700"
-                    >
-                      {isReplaying ? (
-                        <>
-                          <Pause className="w-4 h-4 mr-2" /> Pause
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-4 h-4 mr-2" /> {replayIndex >= 0 ? "Resume" : "Start Replay"}
-                        </>
-                      )}
+                      className="bg-blue-600 hover:bg-blue-700">
+                      {isReplaying ? (<><Pause className="w-4 h-4 mr-2" /> Pause</>) : 
+                        (<><Play className="w-4 h-4 mr-2" /> {replayIndex >= 0 ? "Resume" : "Start Replay"}</>)}
                     </Button>
                   </div>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {spinResults.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-slate-400">No spins recorded in this session</p>
-                  </div>
+                  <div className="text-center py-12"><p className="text-slate-400">No spins recorded</p></div>
                 ) : (
                   <div className="flex flex-col items-center">
-                    {/* Arrow pointer at the TOP - matching admin version */}
                     <div className="mb-2">
                       <svg width="40" height="40" viewBox="0 0 40 40">
-                        <polygon 
-                          points="20,35 10,10 30,10" 
-                          fill="#3b82f6"
-                          stroke="#1e293b"
-                          strokeWidth="2"
-                        />
+                        <polygon points="20,35 10,10 30,10" fill="#3b82f6" stroke="#1e293b" strokeWidth="2"/>
                       </svg>
                     </div>
-
-                    {/* Wheel canvas */}
                     <div className="relative wheel-glow rounded-full">
-                      <canvas
-                        ref={canvasRef}
-                        width={350}
-                        height={350}
-                        className="rounded-full"
-                      />
+                      <canvas ref={canvasRef} width={350} height={350} className="rounded-full"/>
                     </div>
-
-                    {/* Current winner announcement */}
                     {currentWinner && (
-                      <div className="mt-6 bg-slate-700/50 border border-slate-600/50 rounded-2xl p-6 text-center animate-pulse">
+                      <div className="mt-6 bg-slate-700/50 border border-slate-600/50 rounded-2xl p-6 text-center">
                         <p className="text-sm text-slate-400 mb-1 uppercase tracking-wider flex items-center justify-center gap-2">
-                          {currentWinner.is_auto_selected ? (
-                            <><Sparkles className="w-4 h-4" /> Auto-Selected (Last Member)</>
-                          ) : (
-                            <>Spin #{currentWinner.spin_number} Winner</>
-                          )}
+                          {currentWinner.is_auto_selected ? (<><Sparkles className="w-4 h-4" /> Auto-Selected</>) : 
+                            (`Spin #${currentWinner.spin_number} Winner`)}
                         </p>
-                        <h2 className="text-2xl font-bold text-blue-400">
-                          {currentWinner.winner_name}
-                        </h2>
-                        <p className="text-xs text-slate-500 mt-1">
-                          {format(new Date(currentWinner.created_at), "h:mm:ss a")}
-                        </p>
+                        <h2 className="text-2xl font-bold text-blue-400">{currentWinner.winner_name}</h2>
+                        <p className="text-xs text-slate-500 mt-1">{format(new Date(currentWinner.created_at), "h:mm:ss a")}</p>
                       </div>
                     )}
-
-                    {/* Progress indicator */}
                     <div className="mt-4 text-sm text-slate-400">
-                      {replayIndex >= 0 ? (
-                        <span>Selection {Math.min(replayIndex + 1, spinResults.length)} of {spinResults.length}</span>
-                      ) : (
-                        <span>Ready to replay {spinResults.length} selections</span>
-                      )}
+                      {replayIndex >= 0 ? `Selection ${Math.min(replayIndex + 1, spinResults.length)} of ${spinResults.length}` : 
+                        `Ready to replay ${spinResults.length} selections`}
                     </div>
-
-                    {/* Current members on wheel */}
                     {currentMembers.length > 0 && (
                       <div className="mt-4 flex flex-wrap justify-center gap-2">
-                        {currentMembers.map((member) => (
-                          <Badge key={member.id} variant="outline" className="text-xs border-slate-600 text-slate-300">
-                            {member.name}
-                          </Badge>
+                        {currentMembers.map((m) => (
+                          <Badge key={m.id} variant="outline" className="text-xs border-slate-600 text-slate-300">{m.name}</Badge>
                         ))}
                       </div>
                     )}
@@ -590,9 +427,7 @@ const MemberSessionReplay = () => {
               </CardHeader>
               <CardContent>
                 {spinResults.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-slate-400">No spins recorded</p>
-                  </div>
+                  <div className="text-center py-8"><p className="text-slate-400">No spins recorded</p></div>
                 ) : (
                   <ScrollArea className="h-[450px] pr-4">
                     <div className="space-y-3">
@@ -602,55 +437,39 @@ const MemberSessionReplay = () => {
                           onClick={() => skipToSpin(index)}
                           disabled={isWheelSpinning}
                           className={`w-full text-left relative flex flex-col gap-2 p-4 rounded-xl border transition-all duration-300 hover:border-blue-500/50 ${
-                            replayIndex === index 
-                              ? "border-blue-500/50 bg-blue-500/10" 
-                              : replayIndex > index
-                              ? "border-emerald-500/30 bg-emerald-500/5"
-                              : "border-slate-700/50 bg-slate-800/50"
-                          } ${isWheelSpinning ? "pointer-events-none opacity-50" : ""}`}
+                            replayIndex === index ? "border-blue-500/50 bg-blue-500/10" : 
+                            replayIndex > index ? "border-emerald-500/30 bg-emerald-500/5" : "border-slate-700/50 bg-slate-800/50"
+                          }`}
                         >
                           <div className="flex items-center gap-3">
-                            {/* Spin number badge */}
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
-                              replayIndex === index 
-                                ? "bg-amber-500 text-white" 
-                                : replayIndex > index
-                                ? "bg-emerald-500 text-white"
-                                : "bg-slate-700 text-slate-400"
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                              replayIndex === index ? "bg-amber-500 text-white" : 
+                              replayIndex > index ? "bg-emerald-500 text-white" : "bg-slate-700 text-slate-400"
                             }`}>
                               {result.spin_number}
                             </div>
-                            
-                            <div className="flex-1 min-w-0">
-                              <p className={`font-medium truncate ${
-                                replayIndex === index ? "text-white" : "text-slate-300"
-                              }`}>
-                                {result.winner_name}
-                              </p>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className={`font-semibold ${replayIndex >= index ? "text-white" : "text-slate-400"}`}>
+                                  {result.winner_name}
+                                </p>
+                                {result.is_auto_selected && (
+                                  <Badge className="text-xs bg-slate-700 text-slate-300">
+                                    <Sparkles className="w-3 h-3 mr-1" />Last
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="text-xs text-slate-500">
-                                {format(new Date(result.created_at), "h:mm:ss a")}
+                                {result.is_auto_selected ? "Auto-selected" : format(new Date(result.created_at), "h:mm:ss a")}
                               </p>
                             </div>
-
-                            {/* Status indicators */}
-                            <div className="flex items-center gap-1">
-                              {result.is_auto_selected && (
-                                <Badge variant="outline" className="text-xs border-slate-600 text-slate-400">
-                                  Auto
-                                </Badge>
-                              )}
-                              {replayIndex === index && (
-                                <Badge className="bg-amber-500/20 text-amber-400 text-xs">
-                                  Current
-                                </Badge>
-                              )}
-                              {replayIndex > index && (
-                                <Badge className="bg-emerald-500/20 text-emerald-400 text-xs">
-                                  Done
-                                </Badge>
-                              )}
-                            </div>
+                            <FastForward className={`w-4 h-4 ${replayIndex === index ? "opacity-0" : "opacity-50 text-slate-500"}`} />
                           </div>
+                          {result.members_at_spin && result.members_at_spin.length > 0 && (
+                            <div className="text-xs text-slate-500 border-t border-slate-700/50 pt-2 mt-1">
+                              <span className="font-medium">On wheel:</span> {result.members_at_spin.map(m => m.name).join(", ")}
+                            </div>
+                          )}
                         </button>
                       ))}
                     </div>

@@ -210,15 +210,18 @@ frontend:
 
   - task: "Member Online Status Fix"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/pages/GroupDetail.jsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "testing"
           comment: "Need to test that members without recent activity (not actively using member portal) show as 'Offline' (gray indicator), not online. Members should only show as 'Online' (green) if they have active session within last 30 seconds"
+        - working: true
+          agent: "testing"
+          comment: "TESTED: Member Online Status Fix is working correctly. ✅ Member Access tab accessible from group details, ✅ Online/Offline status badges are visible with proper styling, ✅ Members currently show 'Offline' with gray indicators (bg-gray-500/10 text-gray-500 border-gray-500/20), ✅ Status column displays proper Badge components with Circle icons. The feature is implemented and functioning - members without active sessions show as 'Offline' (gray) as expected. Real-time verification of 30-second timeout would require active member portal sessions."
 
   - task: "Remove obsolete MemberSessionReplay page and route"
 

@@ -320,6 +320,16 @@ const MemberPortal = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Draw live wheel preview when remaining members change
+  useEffect(() => {
+    const canvas = liveWheelRef.current;
+    if (!canvas || remainingMembers.length === 0) return;
+    
+    // Use the drawWheel function to show the wheel with remaining members
+    const members = remainingMembers.map(m => ({ id: m.id, name: m.name }));
+    drawWheel(canvas, members, 0, null);
+  }, [remainingMembers, drawWheel]);
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;

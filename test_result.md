@@ -193,7 +193,29 @@ frontend:
           agent: "testing"
           comment: "TESTED: Root route fix is working perfectly. ✅ Root URL (/) shows Landing Page with ROSCA Spin header and main content. ✅ Sign In navigation works correctly (/login). ✅ Login flow redirects to /dashboard (not /). ✅ Dashboard logo stays on /dashboard after login. ✅ /landing route also works. ✅ Unauthenticated users see Landing Page at root URL. ✅ Protected routes still redirect to login correctly. All test scenarios passed successfully."
 
-  - task: "Remove obsolete MemberSessionReplay page and route"
+  - task: "Dashboard Navigation Fix"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/Layout.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "testing"
+          comment: "Need to test that Dashboard link in navigation bar points to /dashboard (not /) and clicking it stays on /dashboard"
+
+  - task: "Member Online Status Fix"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/GroupDetail.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "testing"
+          comment: "Need to test that members without recent activity (not actively using member portal) show as 'Offline' (gray indicator), not online. Members should only show as 'Online' (green) if they have active session within last 30 seconds"
     implemented: true
     working: true
     file: "/app/frontend/src/App.js"

@@ -216,19 +216,8 @@ frontend:
         - working: "NA"
           agent: "testing"
           comment: "Need to test that members without recent activity (not actively using member portal) show as 'Offline' (gray indicator), not online. Members should only show as 'Online' (green) if they have active session within last 30 seconds"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/App.js"
-    stuck_count: 0
-    priority: "low"
-    needs_retesting: false
-    status_history:
-        - working: "NA"
-          agent: "main"
-          comment: "MemberSessionReplay.jsx was made obsolete after implementing replay as modal in MemberPortal.jsx"
-        - working: true
-          agent: "main"
-          comment: "Deleted /app/frontend/src/pages/MemberSessionReplay.jsx file and removed its import and route from App.js"
+
+  - task: "Remove obsolete MemberSessionReplay page and route"
 
 metadata:
   created_by: "main_agent"

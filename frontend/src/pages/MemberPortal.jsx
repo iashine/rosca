@@ -256,6 +256,7 @@ const MemberPortal = () => {
       
       setGroupData(newData);
       setOnlineMembers(newData.members || []);
+      setRemainingMembers(newData.remaining_members || []);
     } catch (error) {
       if (error.response?.status === 401) {
         toast.error("Session expired. Please login again.");

@@ -1496,6 +1496,14 @@ async def get_member_group_data(request: Request):
     # Get online members
     online_members = [{"member_id": m["id"], "member_name": m["name"], "is_online": m.get("is_online", False), "last_seen": m.get("last_seen", "")} for m in members]
     
+    # Calculate remaining members for the current session (who haven't won yet)
+    winner_ids = [s.get("winner_member_id") for s in spins if s.get("winner_member_id")]
+    remaining_members = [m for m in members if m["id"] not in winner_ids]
+    
+    # Get total members count and spins count for progress
+    total_members = len(members)
+    completed_spins = len(spins)
+    
     return {
         "group": {
             "id": group["id"],
@@ -1511,7 +1519,10 @@ async def get_member_group_data(request: Request):
         "session": {
             "id": session["id"] if session else None,
             "status": session["status"] if session else None,
-            "started_at": session["started_at"] if session else None
+            "started_at": session["started_at"] if session else None,
+            "total_members": total_members,
+            "completed_spins": completed_spins,
+            "remaining_members": len(remaining_members)
         } if session else None,
         "recent_spins": [{
             "id": s["id"],
@@ -1524,6 +1535,7 @@ async def get_member_group_data(request: Request):
             "is_auto_selected": s.get("is_auto_selected", False),
             "created_at": s["created_at"]
         } for s in spins[:10]],
+        "remaining_members": [{"id": m["id"], "name": m["name"]} for m in remaining_members],
         "members": online_members
     }
 

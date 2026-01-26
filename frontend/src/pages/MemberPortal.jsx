@@ -409,7 +409,7 @@ const MemberPortal = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Spins & Info */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Session Status */}
+            {/* Session Status with Live Wheel Preview */}
             <Card className={`bg-slate-800/50 border-slate-700/50 ${newSpinAlert ? 'ring-2 ring-green-500 ring-opacity-50' : ''}`}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2 text-white">
@@ -424,13 +424,57 @@ const MemberPortal = () => {
               </CardHeader>
               <CardContent>
                 {session ? (
-                  <div className="flex items-center gap-4">
-                    <Badge className="bg-green-500/10 text-green-400 border-green-500/20">
-                      In Progress
-                    </Badge>
-                    <span className="text-sm text-slate-400">
-                      Started {format(new Date(session.started_at), "MMM d, yyyy h:mm a")}
-                    </span>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <Badge className="bg-green-500/10 text-green-400 border-green-500/20">
+                        In Progress
+                      </Badge>
+                      <span className="text-sm text-slate-400">
+                        Started {format(new Date(session.started_at), "MMM d, yyyy h:mm a")}
+                      </span>
+                      {session.total_members && (
+                        <span className="text-sm text-slate-400">
+                          • {session.completed_spins || 0}/{session.total_members} spins completed
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Live Wheel Preview */}
+                    {remainingMembers.length > 0 && (
+                      <div className="mt-4 p-4 rounded-lg bg-slate-900/50 border border-slate-700/50">
+                        <h4 className="text-sm font-medium text-slate-300 mb-3 flex items-center gap-2">
+                          <Circle className="w-2 h-2 fill-green-500 text-green-500 animate-pulse" />
+                          Next Spin - {remainingMembers.length} members remaining
+                        </h4>
+                        <div className="flex justify-center">
+                          <canvas 
+                            ref={liveWheelRef}
+                            width={200}
+                            height={200}
+                            className="rounded-full"
+                          />
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-1 justify-center">
+                          {remainingMembers.map((m) => (
+                            <Badge 
+                              key={m.id} 
+                              variant="outline" 
+                              className={`text-xs ${m.id === memberInfo.member_id ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'text-slate-400 border-slate-600'}`}
+                            >
+                              {m.name} {m.id === memberInfo.member_id && "(You)"}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {remainingMembers.length === 0 && recentSpins.length > 0 && (
+                      <div className="mt-4 p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+                        <p className="text-green-400 text-center">
+                          🎉 Cycle Complete! All members have received the pot.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <p className="text-slate-400">

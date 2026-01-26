@@ -1299,15 +1299,30 @@ async def get_members_with_access(group_id: str, current_user: dict = Depends(ge
     
     members = await db.members.find({"group_id": group_id, "status": "active"}, {"_id": 0}).to_list(1000)
     
-    return [MemberAccessResponse(
-        id=m["id"],
-        name=m["name"],
-        email=m.get("email"),
-        passcode=m.get("passcode", ""),
-        access_link=access_link,
-        is_online=m.get("is_online", False),
-        last_seen=m.get("last_seen")
-    ) for m in members]
+    # Calculate online status based on last_seen (within 30 seconds)
+    now = datetime.now(timezone.utc)
+    result = []
+    for m in members:
+        last_seen = m.get("last_seen")
+        is_online = False
+        if last_seen:
+            try:
+                last_seen_dt = datetime.fromisoformat(last_seen.replace("Z", "+00:00"))
+                is_online = (now - last_seen_dt).total_seconds() < 30
+            except:
+                is_online = False
+        
+        result.append(MemberAccessResponse(
+            id=m["id"],
+            name=m["name"],
+            email=m.get("email"),
+            passcode=m.get("passcode", ""),
+            access_link=access_link,
+            is_online=is_online,
+            last_seen=m.get("last_seen")
+        ))
+    
+    return result
 
 @api_router.put("/groups/{group_id}/members/{member_id}/passcode")
 async def update_member_passcode(group_id: str, member_id: str, data: MemberPasscodeUpdate, current_user: dict = Depends(get_current_user)):

@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: Fix clipboard bug ("Failed to copy" error) and add auto-refresh/replay functionality to Member Portal
+user_problem_statement: Fix clipboard bug ("Failed to copy" error) and add auto-refresh/replay functionality to Member Portal. Test Dashboard Navigation Fix and Member Online Status Fix.
 
 backend:
   - task: "Member Portal API returns session_id in recent_spins"

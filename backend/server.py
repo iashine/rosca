@@ -1465,11 +1465,30 @@ async def get_member_group_data(request: Request):
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
     
-    # Get active session
+    # Get active session first
     session = await db.sessions.find_one({"group_id": group["id"], "status": "in_progress"}, {"_id": 0})
     
-    # Get all spins for this group
-    spins = await db.spin_results.find({"group_id": group["id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    # If no active session, get the most recent completed session
+    current_session_id = None
+    if session:
+        current_session_id = session["id"]
+    else:
+        # Get most recent completed session
+        latest_session = await db.sessions.find_one(
+            {"group_id": group["id"], "status": "completed"}, 
+            {"_id": 0},
+            sort=[("completed_at", -1)]
+        )
+        if latest_session:
+            current_session_id = latest_session["id"]
+    
+    # Get spins ONLY for the current/latest session
+    spins = []
+    if current_session_id:
+        spins = await db.spin_results.find(
+            {"session_id": current_session_id}, 
+            {"_id": 0}
+        ).sort("created_at", -1).to_list(100)
     
     # Get all members
     members = await db.members.find({"group_id": group["id"], "status": "active"}, {"_id": 0}).to_list(100)

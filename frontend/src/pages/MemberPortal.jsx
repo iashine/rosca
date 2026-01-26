@@ -56,7 +56,9 @@ const MemberPortal = () => {
   const [onlineMembers, setOnlineMembers] = useState([]);
   const [lastSpinCount, setLastSpinCount] = useState(0);
   const [newSpinAlert, setNewSpinAlert] = useState(false);
+  const [remainingMembers, setRemainingMembers] = useState([]);
   const chatEndRef = useRef(null);
+  const liveWheelRef = useRef(null);
   
   // Replay modal state
   const [replayingSpin, setReplayingSpin] = useState(null);
